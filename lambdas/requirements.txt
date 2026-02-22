@@ -1,0 +1,13 @@
+# ========================================
+# requirements.txt
+# Dependencias de Python para las funciones Lambda
+# ========================================
+
+# AWS SDK para Python
+boto3==1.34.10
+
+# JWT para autenticación
+PyJWT==2.8.0
+
+# NOTA: No es necesario incluir botocore porque viene con boto3
+# AWS Lambda ya incluye boto3 y botocore en el entorno de ejecución

@@ -1,0 +1,38 @@
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
+
+# Frontend
+node_modules/
+dist/
+.env
+.env.local
+
+# Android
+android/build/
+android/.gradle/
+android/app/build/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+```
+
+---
+
+## Estructura final del nuevo repo
+```
+tandasmx-app/
+├── app/                  ← src/app_tandamx/
+├── lambdas/              ← src/lambdas/
+├── layers/               ← src/layers/
+├── infra/                ← todos los .tf
+├── .gitignore
+└── README.md

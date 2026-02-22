@@ -1,0 +1,9 @@
+aws_region = "us-east-1"
+
+environment = "dev"
+
+support_email = "tandamx.soporte@gmail.com"
+
+frontend_url = "https://app-tandamx.s3.us-east-1.amazonaws.com/index.html#"
+
+token_expiration_hours = 24
