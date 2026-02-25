@@ -16,6 +16,9 @@ android/build/
 android/.gradle/
 android/app/build/
 
+# lambdas
+infra/build/
+
 # IDE
 .idea/
 .vscode/

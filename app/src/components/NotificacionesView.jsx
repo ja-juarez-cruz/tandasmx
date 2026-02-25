@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Send, MessageCircle, Users, CheckSquare, Square, Filter, Clock } from 'lucide-react';
-
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from '../utils/apiFetch';
 
 export default function NotificacionesView({ tandaData }) {
   const [seleccionados, setSeleccionados] = useState([]);

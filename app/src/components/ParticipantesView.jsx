@@ -286,11 +286,35 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
   const enviarMensaje = (participante, tipo) => {
     const totalRecibir = tandaData.montoPorRonda * (tandaData.totalRondas - 1);
     const rondaActual = calcularRondaActual(tandaData);
-    
-    const mensajes = {
-      realizado: `¡Hola ${participante.nombre}! 👋\n\n✅ *Confirmación de Pago*\n\nTu pago de la tanda *${tandaData.nombre}* se ha realizado correctamente.\n\n💰 *Monto a recibir:* $${totalRecibir.toLocaleString()}\n\n¡Gracias por tu confianza! 🎉`,
-      pendiente: `¡Hola ${participante.nombre}! 👋\n\n📢 *Recordatorio de Pago*\n\nTe recordamos que tienes un pago pendiente en la tanda *${tandaData.nombre}*.\n\n📋 *Detalles:*\n- Ronda actual: ${rondaActual}\n- Monto por ronda: $${tandaData.montoPorRonda.toLocaleString()}\n\nPor favor, realiza tu pago lo antes posible para mantenernos al día.\n\nPuedes ver más detalles en:\n${generarLinkPublico()}\n\n¡Gracias por tu atención! 🙏`
-    };
+
+    let mensajes;
+
+    if (esCumpleañera) {
+      // Encontrar al cumpleañero de la ronda actual
+      const cumpleañero = (tandaData.participantes || []).find(p => p.numeroAsignado === rondaActual);
+      const nombreCumple = cumpleañero?.nombre || 'el cumpleañero';
+
+      // Formatear la fecha próxima del cumpleaños
+      let fechaCumpleTexto = '';
+      if (cumpleañero?.fechaCumpleaños) {
+        const fechaBase = new Date(cumpleañero.fechaCumpleaños + 'T00:00:00');
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        let proximoCumple = new Date(hoy.getFullYear(), fechaBase.getMonth(), fechaBase.getDate());
+        if (proximoCumple < hoy) proximoCumple.setFullYear(hoy.getFullYear() + 1);
+        fechaCumpleTexto = proximoCumple.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+      }
+
+      mensajes = {
+        realizado: `¡Hola ${participante.nombre}! 👋\n\n✅ *🎉 ¡Pago Realizado!*\n\nEl monto de la tanda cumpleañera ha sido enviado exitosamente  ¡Esperamos que disfrutes mucho tu regalo! 🎂. 🎂\n\n💰 *${nombreCumple} recibirá:* $${totalRecibir.toLocaleString()}${fechaCumpleTexto ? `\n📅 *Fecha de cumpleaños:* ${fechaCumpleTexto}` : ''}\n\n 🥳 ¡Feliz Cumpleaños ${nombreCumple}! \n\n ¡Que la pases increíble y disfrutes al máximo tu regalo! 🎁`,
+        pendiente: `¡Hola ${participante.nombre}! 👋\n\n📢 *Recordatorio de Aportación*\n\n¡El cumpleaños de *${nombreCumple}* se acerca! 🎂 Tienes una aportación pendiente en la tanda *${tandaData.nombre}*.\n\n📋 *Detalles:*\n- Cumpleañero(a): ${nombreCumple}${fechaCumpleTexto ? `\n- Fecha de cumpleaños: ${fechaCumpleTexto}` : ''}\n- Aportación: $${tandaData.montoPorRonda.toLocaleString()}\n\nRealiza tu pago a tiempo para que *${nombreCumple}* reciba su regalo completo. 🎁\n\nPuedes ver más detalles en:\n${generarLinkPublico()}\n\n¡Gracias por tu atención! 🙏`
+      };
+    } else {
+      mensajes = {
+        realizado: `¡Hola ${participante.nombre}! 👋\n\n✅ *Confirmación de Pago*\n\nTu pago de la tanda *${tandaData.nombre}* se ha realizado correctamente.\n\n💰 *Monto a recibir:* $${totalRecibir.toLocaleString()}\n\n¡Gracias por tu confianza! 🎉`,
+        pendiente: `¡Hola ${participante.nombre}! 👋\n\n📢 *Recordatorio de Pago*\n\nTe recordamos que tienes un pago pendiente en la tanda *${tandaData.nombre}*.\n\n📋 *Detalles:*\n- Ronda actual: ${rondaActual}\n- Monto por ronda: $${tandaData.montoPorRonda.toLocaleString()}\n\nPor favor, realiza tu pago lo antes posible para mantenernos al día.\n\nPuedes ver más detalles en:\n${generarLinkPublico()}\n\n¡Gracias por tu atención! 🙏`
+      };
+    }
 
     setParticipanteSeleccionado(participante);
     setTipoMensaje(tipo);

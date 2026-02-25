@@ -308,13 +308,15 @@ def refresh_token_handler(event, context):
         
         usuario = result['Item']
         
-        # Generar nuevo token
+        # Generar nuevo access token y rotar el refresh token (sliding expiration)
         new_token = generate_token(user_id, usuario['email'])
-        
+        new_refresh_token = generate_refresh_token(user_id)
+
         return response(200, {
             'success': True,
             'data': {
                 'token': new_token,
+                'refreshToken': new_refresh_token,
                 'expiresIn': 3600
             }
         })

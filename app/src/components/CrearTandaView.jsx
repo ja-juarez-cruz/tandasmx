@@ -6,9 +6,7 @@ import {
   exportarCalendarioComoImagen,
   enviarCalendarioComoImagen
 } from '../utils/tandaExport';
-
-
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from '../utils/apiFetch';
 
 // ==================== COMPONENTE CALENDARIO RONDAS ====================
 function CalendarioRondas({ fechasEjemplo, totalRondas, nombreTanda, montoPorRonda, frecuencia }) {

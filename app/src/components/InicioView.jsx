@@ -1,6 +1,6 @@
 import React from 'react';
-import { Users, Plus, Calendar, DollarSign, TrendingUp, ArrowRight, Trash2, AlertTriangle, Gift, Clock, CheckCircle, AlertCircle, Sparkles, Loader } from 'lucide-react';
-import { calcularFechasRondas, calcularRondaActual, obtenerFechaHoyISO } from '../utils/tandaCalculos';
+import { Users, Plus, Calendar, DollarSign, TrendingUp, ArrowRight, Trash2, AlertTriangle, Gift, CheckCircle, AlertCircle, Sparkles, Loader } from 'lucide-react';
+import { calcularFechasRondas, calcularRondaActual, calcularProximoCumpleanos, calcularEstadoTanda } from '../utils/tandaCalculos';
 import { apiFetch } from '../utils/apiFetch';
 
 export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, onCrearNueva, onEliminarTanda, loading = false }) {
@@ -83,165 +83,6 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
       </div>
     );
   }
-
-  // ====================================
-  // FUNCIONES DE CUMPLEAÑOS
-  // ====================================
-
-  function calcularFechaCumpleañosRonda(tanda, numeroRonda) {
-    if (tanda.frecuencia !== 'cumpleaños') return null;
-    const participante = (tanda.participantes || []).find(p => p.numeroAsignado === numeroRonda);
-    if (!participante || !participante.fechaCumpleaños) return null;
-    const fechaCumple = new Date(participante.fechaCumpleaños + 'T00:00:00');
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    let proximoCumple = new Date(hoy.getFullYear(), fechaCumple.getMonth(), fechaCumple.getDate());
-    proximoCumple.setHours(0,0,0,0);
-    if (proximoCumple < hoy) proximoCumple.setFullYear(hoy.getFullYear() + 1);
-    return proximoCumple;
-  }
-
-  function calcularDiasHastaCumpleaños(tanda, numeroRonda) {
-    const fechaCumple = calcularFechaCumpleañosRonda(tanda, numeroRonda);
-    if (!fechaCumple) return null;
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    return Math.ceil((fechaCumple - hoy) / (1000 * 60 * 60 * 24));
-  }
-
-  const calcularProximoCumpleanos = (tanda) => {
-    if (tanda.frecuencia !== 'cumpleaños' || !tanda.participantes || tanda.participantes.length === 0) return null;
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const participantesOrdenados = [...tanda.participantes].sort((a, b) => a.numeroAsignado - b.numeroAsignado);
-
-    let cumpleañerosHoy = [];
-    participantesOrdenados.forEach(p => {
-      if (p.fechaCumpleaños) {
-        const fc = new Date(p.fechaCumpleaños + 'T00:00:00'); fc.setHours(0,0,0,0);
-        if (fc.getTime() === hoy.getTime()) cumpleañerosHoy.push(p);
-      }
-    });
-
-    let numeroActual = null, participanteActual = null;
-    for (const p of participantesOrdenados) {
-      if (p.fechaCumpleaños) {
-        const fc = new Date(p.fechaCumpleaños + 'T00:00:00'); fc.setHours(0,0,0,0);
-        if (fc <= hoy) { numeroActual = p.numeroAsignado; participanteActual = p; }
-        else break;
-      }
-    }
-
-    let diasFaltantesActual = null;
-    if (participanteActual?.fechaCumpleaños) {
-      const fa = new Date(participanteActual.fechaCumpleaños + 'T00:00:00'); fa.setHours(0,0,0,0);
-      diasFaltantesActual = Math.ceil((fa - hoy) / (1000 * 60 * 60 * 24));
-    }
-
-    let cumpleañerosRecientes = [];
-    if (numeroActual && participanteActual) {
-      const fechaActual = new Date(participanteActual.fechaCumpleaños + 'T00:00:00'); fechaActual.setHours(0,0,0,0);
-      const diasDesdeActual = Math.ceil((hoy - fechaActual) / (1000 * 60 * 60 * 24));
-      if (diasDesdeActual <= 5) {
-        cumpleañerosRecientes.push({ ...participanteActual, diasDesde: diasDesdeActual, fechaUltimoCumple: fechaActual });
-      }
-      for (let i = numeroActual - 1; i >= 1; i--) {
-        const pa = participantesOrdenados.find(p => p.numeroAsignado === i);
-        if (pa?.fechaCumpleaños) {
-          const fa = new Date(pa.fechaCumpleaños + 'T00:00:00'); fa.setHours(0,0,0,0);
-          if (fa.getTime() === fechaActual.getTime()) cumpleañerosRecientes.push({ ...pa, diasDesde: diasDesdeActual, fechaUltimoCumple: fa });
-          else break;
-        }
-      }
-      cumpleañerosRecientes.sort((a, b) => a.numeroAsignado - b.numeroAsignado);
-    }
-
-    let proximoCumple = null, cumpleañerosProximos = [], menorDiferencia = Infinity;
-    const maxNum = Math.max(...participantesOrdenados.map(p => p.numeroAsignado));
-
-    if (numeroActual) {
-      const sig = participantesOrdenados.find(p => p.numeroAsignado === numeroActual + 1);
-      if (sig?.fechaCumpleaños) {
-        const fs = new Date(sig.fechaCumpleaños + 'T00:00:00'); fs.setHours(0,0,0,0);
-        menorDiferencia = Math.ceil((fs - hoy) / (1000 * 60 * 60 * 24));
-        proximoCumple = fs;
-        cumpleañerosProximos.push(sig);
-        for (let i = numeroActual + 2; i <= maxNum; i++) {
-          const op = participantesOrdenados.find(p => p.numeroAsignado === i);
-          if (op?.fechaCumpleaños) {
-            const of2 = new Date(op.fechaCumpleaños + 'T00:00:00'); of2.setHours(0,0,0,0);
-            if (of2.getTime() === fs.getTime()) cumpleañerosProximos.push(op);
-          }
-        }
-      }
-    } else {
-      const primer = participantesOrdenados.find(p => p.fechaCumpleaños);
-      if (primer) {
-        const fp = new Date(primer.fechaCumpleaños + 'T00:00:00'); fp.setHours(0,0,0,0);
-        menorDiferencia = Math.ceil((fp - hoy) / (1000 * 60 * 60 * 24));
-        proximoCumple = fp;
-        cumpleañerosProximos.push(primer);
-        for (let i = 2; i <= maxNum; i++) {
-          const op = participantesOrdenados.find(p => p.numeroAsignado === i);
-          if (op?.fechaCumpleaños) {
-            const of2 = new Date(op.fechaCumpleaños + 'T00:00:00'); of2.setHours(0,0,0,0);
-            if (of2.getTime() === fp.getTime()) cumpleañerosProximos.push(op);
-          }
-        }
-      }
-    }
-
-    return {
-      fecha: proximoCumple,
-      diasFaltantes: diasFaltantesActual,
-      diasFaltantesProximo: menorDiferencia !== Infinity ? menorDiferencia : null,
-      participante: cumpleañerosProximos[0] || null,
-      cumpleañerosProximos,
-      cantidadCumpleañeros: cumpleañerosProximos.length,
-      cumpleañerosRecientes,
-      cumpleañerosHoy,
-      cantidadCumpleañerosHoy: cumpleañerosHoy.length,
-      numeroActual: participanteActual
-    };
-  };
-
-  const obtenerRangoCumpleanos = (tanda) => {
-    if (tanda.frecuencia !== 'cumpleaños' || !tanda.participantes || tanda.participantes.length === 0) return null;
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const proximos = [];
-    tanda.participantes.forEach(p => {
-      if (p.fechaCumpleaños) {
-        const fc = new Date(p.fechaCumpleaños + 'T00:00:00');
-        let pc = new Date(hoy.getFullYear(), fc.getMonth(), fc.getDate()); pc.setHours(0,0,0,0);
-        if (pc < hoy) pc.setFullYear(hoy.getFullYear() + 1);
-        proximos.push(pc);
-      }
-    });
-    if (proximos.length === 0) return null;
-    proximos.sort((a, b) => a - b);
-    return { inicio: proximos[0], fin: proximos[proximos.length - 1] };
-  };
-
-  // ====================================
-  // ESTADO DE TANDA
-  // ====================================
-
-  const calcularEstadoTanda = (tanda) => {
-    if (tanda.frecuencia === 'cumpleaños') {
-      const rango = obtenerRangoCumpleanos(tanda);
-      if (!rango) return 'proximas';
-      const hoy = new Date(); hoy.setHours(0,0,0,0);
-      if (hoy < rango.inicio) return 'proximas';
-      if (hoy > rango.fin) return 'pasadas';
-      return 'vigentes';
-    }
-    if (!tanda.fechaInicio) return 'proximas';
-    const fechaActual = new Date(); fechaActual.setHours(0,0,0,0);
-    const fechasRondas = calcularFechasRondas(tanda.fechaInicio, tanda.totalRondas, tanda.frecuencia);
-    if (fechasRondas.length === 0) return 'proximas';
-    const fechaInicio = fechasRondas[0].fechaInicio; fechaInicio.setHours(0,0,0,0);
-    const fechaFin = new Date(fechasRondas[fechasRondas.length - 1].fechaLimite); fechaFin.setHours(23,59,59,999);
-    if (fechaActual < fechaInicio) return 'proximas';
-    if (fechaActual > fechaFin) return 'pasadas';
-    return 'vigentes';
-  };
 
   const totalTandas = tandas.length;
   const tandasVigentes = tandas.filter(t => calcularEstadoTanda(t) === 'vigentes').length;
@@ -448,83 +289,79 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
 
                           {/* Contador cumpleañeras */}
                           {esCumpleañera && proximoCumple && (
-                            <div className="p-3 bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 rounded-xl">
-                              {proximoCumple.diasFaltantes === 0 ? (
+                            <div className="p-3 bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 rounded-xl space-y-2">
+                              {proximoCumple.cumpleañerosActuales.length > 0 ? (
+                                /* Cumpleaños actual: dentro del rango de ±3 días */
                                 <>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <Gift className="w-6 h-6 text-pink-600" />
-                                      <span className="text-xs font-bold text-pink-800">¡Hoy Cumple Años!</span>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {proximoCumple.cumpleañerosHoy.map((cumple, idx) => (
-                                      <div key={idx} className="flex items-center gap-2 bg-pink-200 p-2 rounded-lg">
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-white flex items-center justify-center font-bold text-sm">{cumple.numeroAsignado}</div>
-                                        <div className="flex-1">
-                                          <div className="text-sm font-bold text-pink-800">{cumple.nombre.split(' ')[0]}</div>
-                                          <div className="text-sm font-semibold text-pink-600">
-                                            {new Date(cumple.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                          </div>
+                                  <p className="text-[10px] font-bold text-pink-800 tracking-wide">
+                                    Cumpleaños Actual{proximoCumple.cumpleañerosActuales.length > 1 ? 's' : ''}
+                                  </p>
+                                  {proximoCumple.cumpleañerosActuales.map(p => (
+                                    <div key={p.participanteId} className="flex items-center gap-2 bg-pink-100 rounded-lg p-1.5">
+                                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                        {p.numeroAsignado}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-bold text-pink-900 truncate">{p.nombre.split(' ')[0]}</div>
+                                        <div className="text-[10px] text-pink-600">
+                                          {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                                          {' · '}
+                                          {p.diasDesde === 0
+                                            ? '¡Hoy!'
+                                            : p.diasDesde < 0
+                                            ? `Faltan ${-p.diasDesde} día${-p.diasDesde !== 1 ? 's' : ''}`
+                                            : `Hace ${p.diasDesde} día${p.diasDesde !== 1 ? 's' : ''}`}
                                         </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                </>
-                              ) : proximoCumple.cumpleañerosRecientes?.length > 0 ? (
-                                <>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <Clock className="w-5 h-5 text-pink-600" />
-                                      <span className="text-xs font-semibold text-pink-800">Cumpleaños Reciente</span>
                                     </div>
-                                    <div className="text-[10px] text-pink-600">Hace {proximoCumple.cumpleañerosRecientes[0].diasDesde} día{proximoCumple.cumpleañerosRecientes[0].diasDesde !== 1 ? 's' : ''}</div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {proximoCumple.cumpleañerosRecientes.map((cumple, idx) => (
-                                      <div key={idx} className="flex items-center gap-2 bg-pink-100 p-2 rounded-lg">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 text-white flex items-center justify-center font-bold text-sm">{cumple.numeroAsignado}</div>
-                                        <div className="flex-1">
-                                          <div className="text-xs font-bold text-pink-800">{cumple.nombre.split(' ')[0]}</div>
-                                          <div className="text-[10px] text-pink-600">{cumple.fechaUltimoCumple.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </>
-                              ) : proximoCumple.cantidadCumpleañeros > 1 ? (
-                                <>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <Clock className="w-5 h-5 text-pink-600" />
-                                      <span className="text-xs font-semibold text-pink-800">{proximoCumple.cantidadCumpleañeros} Cumpleañeros</span>
-                                    </div>
-                                    {proximoCumple.diasFaltantesProximo > 0 && (
-                                      <div className="text-right">
-                                        <div className="text-xl font-black text-pink-600">{proximoCumple.diasFaltantesProximo}</div>
-                                        <div className="text-[9px] text-pink-600">día{proximoCumple.diasFaltantesProximo !== 1 ? 's' : ''}</div>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex flex-wrap gap-1 mt-2">
-                                    {proximoCumple.cumpleañerosHoy.map((cumple, idx) => (
-                                      <span key={idx} className="text-[10px] bg-pink-200 text-pink-800 px-2 py-0.5 rounded-full font-semibold">#{cumple.numeroAsignado} {cumple.nombre.split(' ')[0]}</span>
-                                    ))}
-                                  </div>
+                                  ))}
                                 </>
                               ) : (
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Clock className="w-5 h-5 text-pink-600" />
-                                    <span className="text-xs font-semibold text-pink-800">Próximo Cumpleaños</span>
-                                  </div>
-                                  {proximoCumple.diasFaltantesProximo > 0 && (
-                                    <div className="text-right">
-                                      <div className="text-xl font-black text-pink-600">{proximoCumple.diasFaltantesProximo}</div>
-                                      <div className="text-[9px] text-pink-600">día{proximoCumple.diasFaltantesProximo !== 1 ? 's' : ''}</div>
+                                /* Sin cumpleaños activo: mostrar recientes + próximos */
+                                <>
+                                  {proximoCumple.cumpleañerosRecientes.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                                        Cumpleaños Reciente{proximoCumple.cumpleañerosRecientes.length > 1 ? 's' : ''}
+                                      </p>
+                                      {proximoCumple.cumpleañerosRecientes.map(p => (
+                                        <div key={p.participanteId} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-1.5 mb-1 last:mb-0">
+                                          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                            {p.numeroAsignado}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-bold text-gray-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
+                                            <div className="text-[10px] text-amber-700">
+                                              {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                                              {' · '}hace {p.diasDesde} día{p.diasDesde !== 1 ? 's' : ''}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
                                     </div>
                                   )}
-                                </div>
+                                  {proximoCumple.cumpleañerosProximos.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                                        Próximo{proximoCumple.cumpleañerosProximos.length > 1 ? 's' : ''} Cumpleaños
+                                      </p>
+                                      {proximoCumple.cumpleañerosProximos.map(p => (
+                                        <div key={p.participanteId} className="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg p-1.5 mb-1 last:mb-0">
+                                          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-400 to-purple-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                            {p.numeroAsignado}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-bold text-gray-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
+                                            <div className="text-[10px] text-purple-700">
+                                              {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                                              {' · '}dentro de {p.diasHasta} día{p.diasHasta !== 1 ? 's' : ''}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}

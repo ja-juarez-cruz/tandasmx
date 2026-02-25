@@ -6,8 +6,7 @@ import logoTanda from '../public/assets/logos/logo-tanda-512.png';
 import logoTandaSvg from '../public/assets/logos/logo-tanda.svg';
 import logoWhite from '../public/assets/logos/logo-white.svg';
 import patternBg from '../public/assets/patterns/pattern-bg.svg';
-
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from '../utils/apiFetch';
 
 const api = {
   getHeaders: () => ({

@@ -369,7 +369,7 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
 
                   return participantesOrdenados.map((participante, index) => {
                     const fechaCumple = new Date(participante.fechaCumpleaños + 'T00:00:00');
-                    const primerNombre = participante.nombre.split(' ')[0];
+                    const primerNombre = participante.nombre.split(' ').slice(0, 2).join(' ');
                     
                     return (
                       <div

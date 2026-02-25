@@ -5,8 +5,7 @@ import { calcularRondaActual } from '../utils/tandaCalculos';
 import VerifyPhone from './VerifyPhone'; // 🆕 IMPORTAR
 import logoTanda from '../public/assets/logos/logo-tanda-512.png';
 import logoTandaSvg from '../public/assets/logos/logo-tanda.svg';
-
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from '../utils/apiFetch';
 
 export default function PublicBoard() {
   const { tandaId } = useParams();

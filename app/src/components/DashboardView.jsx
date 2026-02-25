@@ -1,8 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { Users, DollarSign, Calendar, CheckCircle, AlertCircle, Clock, TrendingUp, Award, Plus, Sparkles, MessageCircle, Share2, X, Check, Gift } from 'lucide-react';
-import { 
-  calcularRondaActual, 
-  calcularFechaRonda
+import {
+  calcularRondaActual,
+  calcularFechaRonda,
+  DIAS_VENTANA_CUMPLE,
+  getTextoCumpleanos,
+  obtenerFechaCumpleAnoActual,
+  calcularFechaCumpleañosRonda,
+  obtenerRangoCumpleanos,
+  calcularProximoCumpleInfo,
+  calcularCumpleañosRecientes,
+  calcularCumpleañosProximos,
+  calcularEstadoCumpleRondaActual,
 } from '../utils/tandaCalculos';
 
 const BASE_URL_ESTATIC_WEB = 'https://app-tandasmx.s3.us-east-1.amazonaws.com';
@@ -29,103 +38,11 @@ export default function DashboardView({ tandaData, estadisticas, onCrearTanda })
     );
   }
 
-  // ========================================
-  // FUNCIONES DE CÁLCULO
-  // ========================================
-  
-  // 🔧 Función CORREGIDA para calcular fecha de cumpleaños
-  function calcularFechaCumpleañosRonda(numeroRonda) {
-      if (!esCumpleañera) return null;
-      
-      const participantes = tandaData.participantes || [];
-      const participante = participantes.find(p => p.numeroAsignado === numeroRonda);
-      
-      if (!participante || !participante.fechaCumpleaños) return null;
-      
-      // 🔧 CORRECCIÓN: Parsear la fecha correctamente
-      const fechaCumple = new Date(participante.fechaCumpleaños + 'T00:00:00');
-      console.log('fecha cumple original de ', numeroRonda, ': ', fechaCumple);
-      
-      // Obtener hoy sin hora (solo fecha)
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      
-      // 🔧 CORRECCIÓN: Crear la fecha del cumpleaños de este año manteniendo mes y día
-      let proximoCumple = new Date(fechaCumple);
-      proximoCumple.setFullYear(hoy.getFullYear());
-      proximoCumple.setHours(0, 0, 0, 0);
-      
-      console.log('proximo cumple calculado de ', numeroRonda, ': ', proximoCumple);
-      
-      // 🔧 Solo pasar al próximo año si YA PASÓ (no si es hoy)
-      if (proximoCumple < hoy) {
-        proximoCumple.setFullYear(hoy.getFullYear() + 1);
-        console.log('proximo cumple ajustado (año siguiente) de ', numeroRonda, ': ', proximoCumple);
-      }
-      
-      return proximoCumple;
-  }
-
-  // 🆕 Calcular días hasta el próximo cumpleaños
-  function calcularDiasHastaCumpleaños(numeroRonda) {
-    const fechaCumple = calcularFechaCumpleañosRonda(numeroRonda);
-    if (!fechaCumple) return null;
-    
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    console.log('fecha cumple hoy ',hoy,' vs fecha cumpleaños ',fechaCumple)
-    
-    const diferencia = fechaCumple - hoy;
-    const dias = Math.ceil(diferencia / (1000 * 60 * 60 * 24));
-    
-    return dias;
-  }
-
-  // 🆕 Obtener rango de fechas para tanda cumpleañera
-  function obtenerRangoFechasCumpleañera() {
-    if (!esCumpleañera) return null;
-    
-    const participantes = tandaData.participantes || [];
-    if (participantes.length === 0) return null;
-    
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    
-    const cumpleañosProximos = [];
-    
-    participantes.forEach(p => {
-      if (p.fechaCumpleaños) {
-        const fechaCumple = new Date(p.fechaCumpleaños + 'T00:00:00');
-        let proximoCumple = new Date(hoy.getFullYear(), fechaCumple.getMonth(), fechaCumple.getDate());
-        proximoCumple.setHours(0, 0, 0, 0);
-        
-        if (proximoCumple < hoy) {
-          proximoCumple.setFullYear(hoy.getFullYear() + 1);
-        }
-        
-        cumpleañosProximos.push(proximoCumple);
-      }
-    });
-    
-    if (cumpleañosProximos.length === 0) return null;
-    
-    // Ordenar por fecha
-    cumpleañosProximos.sort((a, b) => a - b);
-    
-    return {
-      inicio: cumpleañosProximos[0],
-      fin: cumpleañosProximos[cumpleañosProximos.length - 1]
-    };
-  }
-
-  function ultimoDiaDelMes(fecha) {
-    return new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
-  }
-  
-  
-  
   // Calcular ronda actual basada en fecha
   const rondaActual = calcularRondaActual(tandaData);
+
+  // Estado del cumpleaños de rondaActual: 'actual' (≤3 días), 'reciente' (>3 días pasados)
+  const estadoCumpleRondaActual = calcularEstadoCumpleRondaActual(tandaData, rondaActual);
 
   const copyPublicLink = () => {
     if (!tandaData) return;
@@ -148,9 +65,21 @@ export default function DashboardView({ tandaData, estadisticas, onCrearTanda })
     const fechaInicio = new Date(tandaData.fechaInicio + 'T00:00:00');
     fechaInicio.setDate(fechaInicio.getDate());
     
-    const mensaje = `📊 Consulta nuestro tablero publico!
+    const mensaje = esCumpleañera
+      ? `🎂 *Tanda Cumpleañera — ${tandaData.nombre}*
 
-📋 Tanda: *${tandaData.nombre}*${esCumpleañera ? ' 🎂' : ''}
+¡Hola a todos! 🎉 Recuerda que estamos ahorrando juntos para celebrar los cumpleaños de cada integrante.
+
+${proximoCumpleInfo ? `🎁 *Próximo cumpleaños:* ${getTextoCumpleanos(proximoCumpleInfo.ronda)} de *${proximoCumpleInfo.nombre}*
+⏳ *Faltan ${proximoCumpleInfo.dias} día${proximoCumpleInfo.dias !== 1 ? 's' : ''}* para que llegue su gran día.
+
+` : ''}💰 No olvides mantener tus pagos al corriente para que el cumpleañero reciba su regalo a tiempo.
+
+🔗 *Consulta el tablero de pagos aquí:*
+${publicUrl}`
+      : `📊 Consulta nuestro tablero publico!
+
+📋 Tanda: *${tandaData.nombre}*
 
 En el siguiente enlace puedes consultar:
 ✅ El avance de los pagos
@@ -170,13 +99,15 @@ ${publicUrl}`;
     setShowWhatsAppModal(false);
   };
 
-  // 🆕 Calcular días hasta próximo cumpleaños
-  const diasHastaProximoCumple = calcularDiasHastaCumpleaños(rondaActual);
-  console.log('diasHastaProximoCumple: ',diasHastaProximoCumple)
+  // Calcular info del próximo cumpleaños pendiente en la tanda
+  const proximoCumpleInfo = calcularProximoCumpleInfo(tandaData);
+  const diasHastaProximoCumple = proximoCumpleInfo?.dias ?? null;
+  const cumpleañosRecientes = calcularCumpleañosRecientes(tandaData);
+  const cumpleañosProximos = calcularCumpleañosProximos(tandaData, proximoCumpleInfo);
 
   // Verificar si la tanda ya inició
-  const fechaInicioTanda = esCumpleañera 
-    ? obtenerRangoFechasCumpleañera()?.inicio 
+  const fechaInicioTanda = esCumpleañera
+    ? obtenerRangoCumpleanos(tandaData)?.inicio
     : new Date(tandaData.fechaInicio + 'T00:00:00');
   
   const fechaInicioTanda2 = fechaInicioTanda ? new Date(fechaInicioTanda) : null;
@@ -193,19 +124,6 @@ ${publicUrl}`;
   // Calcular fecha de inicio de la ronda actual
   const fechaInicioRondaActual = calcularFechaRonda(fechaInicioTanda,rondaActual,tandaData.frecuencia);
 
-  // 🔧 Texto dinámico para el banner según el número de cumpleaños
-  const getTextoCumpleanos = () => {
-    if (!esCumpleañera) return null;
-    
-    const numerales = ['Primer', 'Segundo', 'Tercer', 'Cuarto', 'Quinto', 'Sexto', 'Séptimo', 'Octavo', 'Noveno', 'Décimo'];
-    const indice = rondaActual - 1;
-    
-    if (indice < numerales.length) {
-      return `${numerales[indice]} Cumpleaños`;
-    }
-    return `Cumpleaños ${rondaActual}`;
-  };
-
   // Calcular estadísticas de la RONDA ACTUAL con monto real a recibir
   const statsRondaActual = useMemo(() => {
     const participantes = tandaData.participantes || [];
@@ -219,7 +137,7 @@ ${publicUrl}`;
       
       participantes.forEach(p => {
         if (p.fechaCumpleaños) {
-          const fechaCumple = calcularFechaCumpleañosRonda(p.numeroAsignado);
+          const fechaCumple = calcularFechaCumpleañosRonda(tandaData, p.numeroAsignado);
           if (fechaCumple && fechaCumple.getTime() === fechaInicioRondaActual.getTime()) {
             cumpleañerosHoy.push(p);
           }
@@ -407,8 +325,8 @@ ${publicUrl}`;
 
       {/* Modal WhatsApp */}
       {showWhatsAppModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[200] animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl max-h-[85vh] overflow-y-auto mb-16 sm:mb-0">
             <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-4 md:p-6 text-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 md:gap-3">
@@ -484,7 +402,7 @@ ${publicUrl}`;
                 {esCumpleañera ? 'Próximo Cumpleaños' : 'Tanda Próxima a Iniciar'}
               </h3>
               <p className="text-xs md:text-sm opacity-90">
-                {esCumpleañera ? getTextoCumpleanos() : 'La tanda aún no ha comenzado'}
+                {esCumpleañera ? getTextoCumpleanos(proximoCumpleInfo?.ronda) : 'La tanda aún no ha comenzado'}
               </p>
             </div>
           </div>
@@ -492,7 +410,7 @@ ${publicUrl}`;
             <Calendar className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="text-xs md:text-sm opacity-90">
-                {esCumpleañera ? getTextoCumpleanos() : 'Fecha de Inicio'}
+                {esCumpleañera ? getTextoCumpleanos(proximoCumpleInfo?.ronda) : 'Fecha de Inicio'}
               </div>
               <div className="text-base md:text-xl font-bold truncate">
                 {fechaInicioTanda2.toLocaleDateString('es-MX', {
@@ -521,7 +439,11 @@ ${publicUrl}`;
               <div className="flex items-center gap-2">
                 {esCumpleañera ? <Gift className="w-4 h-4 md:w-5 md:h-5" /> : <Award className="w-4 h-4 md:w-5 md:h-5" />}
                 <span className="text-xs md:text-sm font-bold">
-                  {esCumpleañera ? (tandaIniciada ? 'Próximo Cumpleaños' : getTextoCumpleanos()) : (tandaIniciada ? 'Ronda Actual' : 'Primera Ronda')}
+                  {esCumpleañera
+                    ? (tandaIniciada
+                        ? (estadoCumpleRondaActual?.estado === 'reciente' ? 'Cumpleaños Reciente' : 'Próximo Cumpleaños')
+                        : getTextoCumpleanos(proximoCumpleInfo?.ronda))
+                    : (tandaIniciada ? 'Ronda Actual' : 'Primera Ronda')}
                 </span>
               </div>
               <span className="px-2 py-1 bg-white/20 rounded-lg text-[10px] md:text-xs font-bold">
@@ -532,9 +454,70 @@ ${publicUrl}`;
 
           {/* Contenido */}
           <div className="p-4 md:p-6">
-            {proximoNumero ? (
+            {esCumpleañera && estadoCumpleRondaActual?.estado === 'reciente' ? (
+              /* Vista Reciente: muestra cumpleaños pasado + próximo */
+              <div className="space-y-4">
+                {/* Cumpleaños Recientes */}
+                {cumpleañosRecientes.length > 0 && (
+                  <div>
+                    <p className="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                      Cumpleaños Reciente{cumpleañosRecientes.length > 1 ? 's' : ''}
+                    </p>
+                    {cumpleañosRecientes.map(p => (
+                      <div key={p.participanteId} className="flex items-center gap-2 md:gap-3 p-2.5 bg-amber-50 rounded-xl border-2 border-amber-200 mb-2 last:mb-0">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          {p.numeroAsignado}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-xs md:text-sm text-gray-800 truncate">{p.nombre}</div>
+                          <div className="text-[10px] md:text-xs text-amber-700">
+                            🎂 {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                            {' · '}hace {p.diasDesde} día{p.diasDesde !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Cumpleaños Próximos */}
+                {cumpleañosProximos.length > 0 && (
+                  <div>
+                    <p className="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                      Próximo{cumpleañosProximos.length > 1 ? 's' : ''} Cumpleaños
+                    </p>
+                    {cumpleañosProximos.map(p => (
+                      <div key={p.participanteId} className="flex items-center gap-2 md:gap-3 p-2.5 bg-purple-50 rounded-xl border-2 border-purple-200 mb-2 last:mb-0">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          {p.numeroAsignado}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-xs md:text-sm text-gray-800 truncate">{p.nombre}</div>
+                          <div className="text-[10px] md:text-xs text-purple-700">
+                            🎁 {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                            {' · '}dentro de {proximoCumpleInfo?.dias} día{proximoCumpleInfo?.dias !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Monto a recibir */}
+                <div className="flex items-center gap-2 md:gap-3 p-2.5 bg-green-50 rounded-xl border-2 border-green-200">
+                  <DollarSign className="w-4 h-4 md:w-5 md:h-5 text-green-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] md:text-xs font-semibold text-green-800">Recibirá de Regalo</div>
+                    <div className="text-lg md:text-xl font-black text-green-900">
+                      ${(((tandaData.participantes?.length || 0) - 1) * (tandaData.montoPorRonda || 0)).toLocaleString()}
+                    </div>
+                    <div className="text-[10px] md:text-xs text-green-700">
+                      {(tandaData.participantes?.length || 0) - 1} participantes × ${(tandaData.montoPorRonda || 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : proximoNumero ? (
               <>
-                {/* 🆕 Mostrar TODOS los cumpleañeros si hay múltiples */}
+                {/* Mostrar TODOS los cumpleañeros si hay múltiples activos */}
                 {esCumpleañera && statsRondaActual.cumpleañerosHoy && statsRondaActual.cumpleañerosHoy.length > 1 ? (
                   <>
                     {/* Múltiples cumpleañeros */}
@@ -565,7 +548,7 @@ ${publicUrl}`;
                   </>
                 ) : (
                   <>
-                    {/* Un solo cumpleañero (original) */}
+                    {/* Un solo número de ronda */}
                     <div className="text-center mb-4">
                       <div className={`inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${esCumpleañera ? 'from-pink-500 to-purple-600' : 'from-green-500 to-emerald-600'} text-white shadow-lg mb-3`}>
                         <span className="text-3xl md:text-4xl font-black">{proximoNumero.numeroAsignado}</span>
@@ -578,13 +561,15 @@ ${publicUrl}`;
 
                 {/* Información de fechas y monto */}
                 <div className="space-y-2 md:space-y-3 border-t pt-4">
-                  {/* 🆕 Días hasta el cumpleaños (solo para cumpleañeras) */}
+                  {/* Días hasta el cumpleaños (solo para cumpleañeras) */}
                   {esCumpleañera && diasHastaProximoCumple !== null && (
                     <div className={`flex items-start gap-2 md:gap-3 p-2 md:p-3 bg-gradient-to-r ${coloresTanda.secondary} rounded-xl border-2 ${coloresTanda.border}`}>
                       <Clock className={`w-4 h-4 md:w-5 md:h-5 ${coloresTanda.text} mt-0.5 flex-shrink-0`} />
                       <div className="flex-1 min-w-0">
                         <div className={`text-[10px] md:text-xs font-semibold ${coloresTanda.text} mb-1`}>
-                          {diasHastaProximoCumple === 0 ? '¡Hoy es su cumpleaños!' : 'Faltan'}
+                          {diasHastaProximoCumple === 0
+                            ? `¡Hoy es el ${getTextoCumpleanos(proximoCumpleInfo?.ronda)}!`
+                            : `Para el ${getTextoCumpleanos(proximoCumpleInfo?.ronda)}`}
                         </div>
                         {diasHastaProximoCumple > 0 && (
                           <div className={`text-xl md:text-2xl lg:text-3xl font-black ${coloresTanda.text}`}>
@@ -798,11 +783,26 @@ ${publicUrl}`;
                 .sort((a, b) => a.numeroAsignado - b.numeroAsignado)
                 .map((participante) => {
                   const esProximo = participante.numeroAsignado === rondaActual;
-                  
-                  // 🆕 Verificar si este participante cumple hoy (para cumpleañeras)
-                  const cumpleHoy = esCumpleañera && statsRondaActual.cumpleañerosHoy?.some(
-                    c => c.participanteId === participante.participanteId
-                  );
+
+                  // Días desde el cumpleaños de este participante en el año actual
+                  const diasDesdeCumpleParticipante = esCumpleañera && participante.fechaCumpleaños
+                    ? (() => {
+                        const hoy = new Date();
+                        hoy.setHours(0, 0, 0, 0);
+                        const fechaBase = new Date(participante.fechaCumpleaños + 'T00:00:00');
+                        const cumpleEsteAno = new Date(hoy.getFullYear(), fechaBase.getMonth(), fechaBase.getDate());
+                        return Math.floor((hoy - cumpleEsteAno) / (1000 * 60 * 60 * 24));
+                      })()
+                    : null;
+
+                  // Cumpleaños activo: dentro de la ventana de 3 días (hoy o hasta 3 días atrás)
+                  const cumpleHoy = esCumpleañera && diasDesdeCumpleParticipante !== null
+                    && diasDesdeCumpleParticipante >= 0 && diasDesdeCumpleParticipante <= DIAS_VENTANA_CUMPLE;
+                  // Cumpleaños reciente: es la ronda actual y pasó hace más de 3 días
+                  const esCumpleReciente = esCumpleañera && esProximo && estadoCumpleRondaActual?.estado === 'reciente';
+                  // Próximo cumpleaños: el siguiente en llegar
+                  const esProximoCumpleAnero = esCumpleañera && !cumpleHoy && !esCumpleReciente
+                    && participante.numeroAsignado === proximoCumpleInfo?.ronda;
                   
                   const pagos = participante.pagos || {};
                   const pagoRondaActual = pagos[rondaActual];
@@ -818,11 +818,13 @@ ${publicUrl}`;
                       key={participante.participanteId}
                       className={`p-3 md:p-4 rounded-xl border-2 transition-all ${
                         cumpleHoy
-                          ? 'border-pink-500 bg-pink-50 shadow-md' 
-                          : esProximo
-                          ? esCumpleañera 
-                            ? 'border-pink-300 bg-pink-50' 
-                            : 'border-green-500 bg-green-50 shadow-md'
+                          ? 'border-pink-500 bg-pink-50 shadow-md'
+                          : esCumpleReciente
+                          ? 'border-amber-400 bg-amber-50'
+                          : esProximoCumpleAnero
+                          ? 'border-purple-300 bg-purple-50'
+                          : esProximo && !esCumpleañera
+                          ? 'border-green-500 bg-green-50 shadow-md'
                           : pagadoRondaActual
                           ? 'border-gray-200 bg-gray-50'
                           : 'border-yellow-200 bg-yellow-50'
@@ -834,10 +836,12 @@ ${publicUrl}`;
                             className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center font-bold text-base md:text-lg shadow-sm flex-shrink-0 ${
                               cumpleHoy
                                 ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white ring-2 ring-pink-400'
-                                : esProximo
-                                ? esCumpleañera
-                                  ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white'
-                                  : 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
+                                : esCumpleReciente
+                                ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white'
+                                : esProximoCumpleAnero
+                                ? 'bg-gradient-to-br from-purple-400 to-purple-600 text-white'
+                                : esProximo && !esCumpleañera
+                                ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
                                 : pagadoRondaActual
                                 ? esExento
                                   ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white'
@@ -857,9 +861,19 @@ ${publicUrl}`;
                                   ← ¡Cumpleaños! 🎂
                                 </span>
                               )}
-                              {esProximo && !cumpleHoy && (
-                                <span className={`ml-1 md:ml-2 text-[10px] md:text-xs ${esCumpleañera ? 'text-pink-600' : 'text-green-600'}`}>
-                                  ← {esCumpleañera ? '¡Cumpleaños!' : 'Turno'}
+                              {esCumpleReciente && (
+                                <span className="ml-1 md:ml-2 text-[10px] md:text-xs text-amber-600">
+                                  ← Cumple Reciente 🎂
+                                </span>
+                              )}
+                              {esProximoCumpleAnero && (
+                                <span className="ml-1 md:ml-2 text-[10px] md:text-xs text-purple-600">
+                                  ← Próximo Cumpleaños 🎁
+                                </span>
+                              )}
+                              {esProximo && !cumpleHoy && !esCumpleañera && (
+                                <span className="ml-1 md:ml-2 text-[10px] md:text-xs text-green-600">
+                                  ← Turno
                                 </span>
                               )}
                             </div>

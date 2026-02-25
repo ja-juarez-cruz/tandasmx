@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, CheckCircle, Calendar, DollarSign, AlertCircle, Loader, Shield } from 'lucide-react';
 import { calcularFechasRondas } from '../utils/tandaCalculos';
 import { useParams, useNavigate } from 'react-router-dom';
-
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from '../utils/apiFetch';
 
 export default function RegistroPublicoView() {
   const navigate = useNavigate();

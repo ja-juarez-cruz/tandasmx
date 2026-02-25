@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Trash2, AlertCircle, CheckCircle, Loader, Info } from 'lucide-react';
-
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from '../utils/apiFetch';
 
 export default function DeleteAccountView() {
   const [formData, setFormData] = useState({

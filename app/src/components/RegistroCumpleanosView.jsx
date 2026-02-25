@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Gift, Calendar, Phone, User, Mail, Cake, PartyPopper, Sparkles, Heart, AlertCircle, CheckCircle, ArrowRight, Info, HelpCircle, X } from 'lucide-react';
-
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from '../utils/apiFetch';
 
 export default function RegistroCumpleanosView() {
   const { token } = useParams();

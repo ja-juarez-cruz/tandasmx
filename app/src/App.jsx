@@ -24,7 +24,7 @@ import { useAndroidBackButton } from './hooks/useAndroidBackButton';
 // ===========================================
 // CONFIGURACIÓN DE LA API
 // ===========================================
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+import { API_BASE_URL } from './utils/apiFetch';
 
 // ===========================================
 // TOKEN MANAGER - Gestión centralizada de tokens
@@ -73,7 +73,6 @@ const tokenManager = {
         const data = await response.json();
         const newToken = data.data?.token || data.token;
         const newRefreshToken = data.data?.refreshToken || data.refreshToken;
-        localStorage.setItem('authToken', 'token_invalido_123');
 
         if (newToken) {
           localStorage.setItem('authToken', newToken);
