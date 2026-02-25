@@ -5,7 +5,7 @@
 // peticiones autenticadas directas.
 // ===========================================
 
-const API_BASE_URL = 'https://9l2vrevqm1.execute-api.us-east-1.amazonaws.com/dev';
+const API_BASE_URL = 'https://kz1132prc0.execute-api.us-east-1.amazonaws.com/dev';
 
 // Lock para evitar múltiples refreshes simultáneos
 let refreshPromise = null;
