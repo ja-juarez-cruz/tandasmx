@@ -28,14 +28,3 @@ infra/build/
 Thumbs.db
 ```
 
----
-
-## Estructura final del nuevo repo
-```
-tandasmx-app/
-├── app/                  ← src/app_tandamx/
-├── lambdas/              ← src/lambdas/
-├── layers/               ← src/layers/
-├── infra/                ← todos los .tf
-├── .gitignore
-└── README.md
