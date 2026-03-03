@@ -94,8 +94,9 @@ export async function apiFetch(endpoint, options = {}) {
     headers: buildHeaders(token)
   });
 
-  // Si recibe 401, intentar refresh silencioso
-  if (response.status === 401) {
+  // Si recibe 401 o 403, intentar refresh silencioso
+  // (API Gateway HTTP API devuelve 403 cuando el authorizer rechaza el token)
+  if (response.status === 401 || response.status === 403) {
     const newToken = await refreshAccessToken();
 
     if (newToken) {
@@ -111,8 +112,8 @@ export async function apiFetch(endpoint, options = {}) {
         return retryData;
       }
 
-      // Si el retry también falla con 401
-      if (retryResponse.status === 401) {
+      // Si el retry también falla, el refresh token ya no sirve
+      if (retryResponse.status === 401 || retryResponse.status === 403) {
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         window.dispatchEvent(new CustomEvent('token-expired'));
@@ -129,15 +130,8 @@ export async function apiFetch(endpoint, options = {}) {
     throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
   }
 
-  // Respuesta normal (no 401)
+  // Respuesta normal
   const data = await response.json();
-
-  if (response.status === 403) {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
-    window.dispatchEvent(new CustomEvent('token-expired'));
-    throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
-  }
 
   if (!response.ok) {
     throw new Error(data.error?.message || data.message || `Error ${response.status}`);

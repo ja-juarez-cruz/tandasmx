@@ -115,8 +115,9 @@ const api = {
    * 3. Solo si el refresh falla → dispara 'token-expired'
    */
   handleResponse: async (response, originalRequest) => {
-    // Si recibe 401, intentar refresh ANTES de fallar
-    if (response.status === 401) {
+    // Si recibe 401 o 403, intentar refresh ANTES de fallar
+    // (API Gateway HTTP API devuelve 403 cuando el authorizer rechaza el token)
+    if (response.status === 401 || response.status === 403) {
       const newToken = await tokenManager.refreshAccessToken();
 
       if (newToken && originalRequest) {
@@ -136,8 +137,8 @@ const api = {
           return retryData;
         }
 
-        // Si el retry también falla con 401, el refresh token ya no sirve
-        if (retryResponse.status === 401) {
+        // Si el retry también falla, el refresh token ya no sirve
+        if (retryResponse.status === 401 || retryResponse.status === 403) {
           tokenManager.clearTokens();
           window.dispatchEvent(new CustomEvent('token-expired'));
           throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
@@ -153,12 +154,6 @@ const api = {
     }
 
     const data = await response.json();
-
-    if (response.status === 403) {
-      tokenManager.clearTokens();
-      window.dispatchEvent(new CustomEvent('token-expired'));
-      throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
-    }
 
     if (!response.ok) {
       console.error('❌ Error en API:', {
@@ -332,7 +327,7 @@ function TandaManager() {
     return isPublic;
   }, [location.pathname]);
 
-  // ========== INICIALIZACIÓN ==========
+  // ========== INICIALIZACIÓN (solo al montar) ==========
   useEffect(() => {
     if (isPublicRoute()) {
       console.log('🌐 Ruta pública detectada, saltando inicialización de sesión');
@@ -353,7 +348,7 @@ function TandaManager() {
           telefono: ''
         });
         await loadAdminData();
-        
+
         if (location.pathname === '/') {
           navigate('/inicio', { replace: true });
         }
@@ -366,7 +361,8 @@ function TandaManager() {
     };
 
     initializeApp();
-  }, [location.pathname, isPublicRoute, navigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo al montar — las rutas privadas manejan el acceso vía PrivateRoute
 
   // ========== DETECCIÓN DE TOKEN EXPIRADO ==========
   // Ahora solo se dispara si el refresh token también falló

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Send, MessageCircle, Users, CheckSquare, Square, Filter, Clock } from 'lucide-react';
-import { API_BASE_URL } from '../utils/apiFetch';
+import { apiFetch } from '../utils/apiFetch';
 
 export default function NotificacionesView({ tandaData }) {
   const [seleccionados, setSeleccionados] = useState([]);
@@ -90,18 +90,12 @@ Por favor realiza tu pago lo antes posible.
     setSuccess(null);
 
     try {
-      const token = localStorage.getItem('authToken');
-      
       if (seleccionados.length === 1) {
         // Envío individual
-        const response = await fetch(
-          `${API_BASE_URL}/tandas/${tandaData.tandaId}/notificaciones/recordatorio`,
+        const data = await apiFetch(
+          `/tandas/${tandaData.tandaId}/notificaciones/recordatorio`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
             body: JSON.stringify({
               participanteId: seleccionados[0],
               mensaje: mensaje
@@ -109,37 +103,21 @@ Por favor realiza tu pago lo antes posible.
           }
         );
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error?.message || 'Error al enviar recordatorio');
-        }
-
         if (data.success) {
           setSuccess('✅ Recordatorio enviado exitosamente');
         }
       } else {
         // Envío masivo
-        const response = await fetch(
-          `${API_BASE_URL}/tandas/${tandaData.tandaId}/notificaciones/recordatorio-masivo`,
+        const data = await apiFetch(
+          `/tandas/${tandaData.tandaId}/notificaciones/recordatorio-masivo`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
             body: JSON.stringify({
               participanteIds: seleccionados,
               mensaje: mensaje
             })
           }
         );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error?.message || 'Error al enviar recordatorios');
-        }
 
         if (data.success) {
           const enviados = data.data?.enviados || seleccionados.length;

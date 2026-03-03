@@ -6,7 +6,7 @@ import {
   exportarCalendarioComoImagen,
   enviarCalendarioComoImagen
 } from '../utils/tandaExport';
-import { API_BASE_URL } from '../utils/apiFetch';
+import { apiFetch } from '../utils/apiFetch';
 
 // ==================== COMPONENTE CALENDARIO RONDAS ====================
 function CalendarioRondas({ fechasEjemplo, totalRondas, nombreTanda, montoPorRonda, frecuencia }) {
@@ -277,13 +277,8 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
     setError(null);
     
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE_URL}/tandas`, {
+      const data = await apiFetch('/tandas', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({
           nombre: formData.nombre,
           montoPorRonda: parseFloat(formData.montoPorRonda),
@@ -296,13 +291,7 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
           status: 'active'
         })
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Error al crear la tanda');
-      }
-      
+
       if (data.success) {
         console.log('✅ Tanda creada exitosamente:', data.data);
         

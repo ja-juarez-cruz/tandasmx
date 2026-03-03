@@ -18,3 +18,9 @@ python restore_dynamodb.py \
   --bucket tandas-backups-production-123456789 \
   --date 2025-01-24 \
   --tables tables_config.json
+
+# Corre la restauración apuntando a tu carpeta de backups
+python restore_dynamo_local.py --folder ~/backups
+
+# O una tabla específica primero para probar
+python restore_dynamo_local.py --folder ~/backups --table usuarios_admin

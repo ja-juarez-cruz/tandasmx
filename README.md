@@ -9,12 +9,11 @@ Aplicación móvil para organizar **tandas** (grupos de ahorro rotativo) en Méx
 ## Estructura del repositorio
 
 ```
-app-tandasmx/
+tandasmx-app/
 ├── app/          # Frontend React + Capacitor (Android)
-├── lambdas/      # Funciones AWS Lambda (Node.js)
+├── lambdas/      # Funciones AWS Lambda (Python)
 ├── layers/       # Lambda Layers compartidos
 └── infra/        # Infraestructura Terraform (DynamoDB, API Gateway, SES)
-└── backup/       # Archivos de respaldo de los datos dynamo
 ```
 
 ---
@@ -66,9 +65,9 @@ app-tandasmx/
    │ auth-password-reset-tokens│
    └──────────────────────────┘
 
-  SES  → Emails transaccionales (forgot/reset password)
-  SNS  → Notificaciones de backup y SMS
-  S3   → Terraform state + backups DynamoDB + web estático
+  SES         → Emails transaccionales (forgot/reset password)
+  SNS         → Notificaciones de backup y SMS
+  S3          → Terraform state + backups DynamoDB + web estático
   EventBridge → Trigger automático de backups semanales
 ```
 
@@ -90,6 +89,7 @@ app-tandasmx/
 - Android Studio + SDK
 - Terraform 1.x
 - AWS CLI configurado con perfil válido
+- Java (para jarsigner al firmar el bundle)
 
 ### 1. Clonar e instalar dependencias del frontend
 
@@ -128,26 +128,75 @@ npx cap open android
 
 ## Deploy
 
-### Frontend → Android
+### Frontend → Play Store (nuevo bundle)
+
+#### 1. Build del frontend y sincronización con Android
 
 ```bash
 cd app
-npm run build          # genera dist/
-npx cap sync android   # sincroniza con el proyecto Android
-# Generar APK/AAB desde Android Studio:
-# Build > Generate Signed Bundle/APK
+npm run build
+npx cap sync android
 ```
 
-### Lambdas
+#### 2. Incrementa la versión en `android/app/build.gradle`
 
-Cada Lambda se despliega a través de Terraform. Si modificas el código de una función:
+Cada subida a Play Store requiere un `versionCode` mayor al anterior:
+
+```gradle
+android {
+    defaultConfig {
+        versionCode 3        # incrementar en 1 respecto a la versión anterior
+        versionName "1.2.0"  # versión visible en Play Store
+    }
+}
+```
+
+#### 3. Genera el AAB desde línea de comandos
 
 ```bash
-cd lambdas/<nombre-funcion>
-npm install --production
-zip -r function.zip .
-# Terraform detecta el cambio y actualiza la función en el siguiente apply
+cd app/android
+./gradlew bundleRelease
+# El archivo queda en:
+# app/build/outputs/bundle/release/app-release.aab
 ```
+
+#### 4. Firma el bundle con jarsigner
+
+El keystore está en `app/tanda-release-key.keystore`:
+
+```bash
+cd app/android
+
+jarsigner -verbose \
+  -sigalg SHA256withRSA \
+  -digestalg SHA-256 \
+  -keystore app/tanda-release-key.keystore \
+  app/build/outputs/bundle/release/app-release.aab \
+  tanda-key
+```
+
+Te pedirá la contraseña del keystore. Al terminar verás `jar signed.`
+
+#### 5. Verifica que el bundle quedó bien firmado
+
+```bash
+jarsigner -verify -verbose \
+  app/build/outputs/bundle/release/app-release.aab
+# Debe mostrar: jar verified.
+```
+
+#### 6. Sube a Play Store
+
+El archivo firmado listo para subir está en:
+```
+app/android/app/build/outputs/bundle/release/app-release.aab
+```
+
+Ve a **Google Play Console → TandasMX → Producción → Crear nueva versión** y sube el `.aab`.
+
+> ⚠️ Nunca subas `tanda-release-key.keystore` al repositorio. Agrégalo al `.gitignore` y guárdalo en un lugar seguro — si lo pierdes no podrás publicar actualizaciones de la app.
+
+---
 
 ### Frontend → Web estático en S3
 
@@ -156,25 +205,25 @@ zip -r function.zip .
 ```bash
 # 1. Crear el bucket
 aws s3api create-bucket \
-  --bucket app-tandasmx \
+  --bucket tandasmx-app \
   --region us-east-1 \
   --profile tandasmx
 
 # 2. Habilitar hosting estático
 #    error-document apunta a index.html porque es una SPA (React Router)
-aws s3 website s3://app-tandasmx \
+aws s3 website s3://tandasmx-app \
   --index-document index.html \
   --error-document index.html \
   --profile tandasmx
 
 # 3. Permitir acceso público
 aws s3api put-public-access-block \
-  --bucket app-tandasmx \
+  --bucket tandasmx-app \
   --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false" \
   --profile tandasmx
 
 aws s3api put-bucket-policy \
-  --bucket app-tandasmx \
+  --bucket tandasmx-app \
   --profile tandasmx \
   --policy '{
     "Version": "2012-10-17",
@@ -182,14 +231,14 @@ aws s3api put-bucket-policy \
       "Effect": "Allow",
       "Principal": "*",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::app-tandasmx/*"
+      "Resource": "arn:aws:s3:::tandasmx-app/*"
     }]
   }'
 ```
 
 URL del sitio:
 ```
-http://app-tandasmx.s3-website-us-east-1.amazonaws.com
+http://tandasmx-app.s3-website-us-east-1.amazonaws.com
 ```
 
 #### Deploy (cada actualización)
@@ -197,10 +246,12 @@ http://app-tandasmx.s3-website-us-east-1.amazonaws.com
 ```bash
 cd app
 npm run build
-aws s3 sync dist/ s3://app-tandasmx --delete --profile tandasmx
+aws s3 sync dist/ s3://tandasmx-app --delete --profile tandasmx
 ```
 
 > ⚠️ S3 static hosting sirve solo HTTP. Si necesitas HTTPS agrega CloudFront enfrente del bucket.
+
+---
 
 ### Infraestructura Terraform
 
@@ -248,12 +299,12 @@ aws s3api put-bucket-versioning \
 
 ### Variables de Terraform
 
-Copiar el ejemplo y completar los valores:
-
 ```bash
 cp terraform.tfvars.example terraform.tfvars
 # terraform.tfvars está en .gitignore — nunca se sube al repo
 ```
+
+---
 
 ## Migración de datos DynamoDB
 
@@ -272,8 +323,8 @@ prod/YYYY/week-NN/nombre_tabla-YYYY-MM-DD.json.gz
 ├── pagos-2025-02-20.json.gz
 └── ...
 ```
-**3.1 ejecuta tu ambiente local de python** (source /home/jose/python_env/myenv312_3/bin/activate):
-**3.2 Corre el script de restauración** (disponible en `lambdas/backup_system/restore_dynamo_local.py`):
+
+**3. Corre el script de restauración** (disponible en `infra/scripts/restore_dynamo_local.py`):
 ```bash
 pip install boto3
 python restore_dynamo_local.py --folder ~/backups
