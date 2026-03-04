@@ -60,7 +60,7 @@ export default function GlobalHeader({
 
   return (
     <>
-      <div className="bg-white shadow-lg border-b-2 border-gray-100 sticky top-0 z-50" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="bg-gray-100 shadow-lg border-b border-gray-200 sticky top-0 z-50" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
             

@@ -23,12 +23,12 @@ export default function BottomNavigation() {
         style={{
           bottom: '80px',
           height: '80px',
-          background: 'linear-gradient(to top, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.8) 40%, rgba(255, 255, 255, 0) 100%)'
+          background: 'linear-gradient(to top, rgba(243, 244, 246, 1) 0%, rgba(243, 244, 246, 0.8) 40%, rgba(243, 244, 246, 0) 100%)'
         }}
       />
       
       {/* 📱 BARRA DE NAVEGACIÓN */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-100 z-50">
         {/* Separador superior con gradiente */}
         <div className="relative h-1">
           <div 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Save, Trash2, AlertTriangle, DollarSign, Calendar, Clock, X, Info, Users, Download, Share2, Gift, CheckCircle, Loader2 } from 'lucide-react';
+import { Settings, Save, Trash2, AlertTriangle, DollarSign, Calendar, Clock, X, Info, Users, Download, Share2, Gift, CheckCircle, Loader2, ChevronDown } from 'lucide-react';
 import { calcularFechasRondas, formatearFechaLarga, obtenerFechaHoyISO } from '../utils/tandaCalculos';
 import {
   exportarCalendarioComoImagen,
@@ -27,6 +27,7 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
   const [success, setSuccess] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [confirmacionTexto, setConfirmacionTexto] = useState('');
+  const [rondasColapsadas, setRondasColapsadas] = useState(true);
 
   const esCumpleañera = tandaData?.frecuencia === 'cumpleaños';
 
@@ -293,15 +294,20 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
         </div>
 
         {/* ── 2. Configuración de Rondas ── */}
-        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6">
-          <div className="flex items-center gap-2 mb-5">
-            <div className="p-2 bg-purple-100 rounded-lg">
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setRondasColapsadas(v => !v)}
+            className="w-full flex items-center gap-2 p-4 md:p-6 hover:bg-gray-50 transition-colors text-left"
+          >
+            <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
               <Users className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
             </div>
-            <h3 className="text-base md:text-lg font-bold text-gray-800">Configuración de Rondas</h3>
-          </div>
+            <h3 className="text-base md:text-lg font-bold text-gray-800 flex-1">Configuración de Rondas</h3>
+            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${rondasColapsadas ? '' : 'rotate-180'}`} />
+          </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {!rondasColapsadas && <div className="px-4 md:px-6 pb-4 md:pb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="config-total-rondas" className="block text-xs md:text-sm font-semibold text-gray-600 mb-1.5">
                 Total de Rondas{esCumpleañera && <span className="ml-1 text-blue-500 font-normal">(editable)</span>}
@@ -350,7 +356,7 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
                 No se puede modificar después de crear la tanda
               </p>
             </div>
-          </div>
+          </div>}
         </div>
 
       </form>
