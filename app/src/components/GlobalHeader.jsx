@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Settings, ChevronDown, Mail, Home, Shield, HelpCircle, List, Check, Gift } from 'lucide-react';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 import logoTanda from '../public/assets/logos/logo-tanda-512.png';
 import logoTandaSvg from '../public/assets/logos/logo-tanda.svg';
@@ -23,6 +24,21 @@ export default function GlobalHeader({
   const [showTandaSelector, setShowTandaSelector] = useState(false);
   const menuRef = useRef(null);
   const tandaSelectorRef = useRef(null);
+
+  // Iconos del sistema (batería, red, hora) en color oscuro para fondo claro
+  useEffect(() => {
+    // Capacitor (Android/iOS nativo)
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+    // Navegador web: theme-color oscuro para que el browser use iconos oscuros
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', '#f3f4f6');
+    else {
+      const m = document.createElement('meta');
+      m.name = 'theme-color';
+      m.content = '#f3f4f6';
+      document.head.appendChild(m);
+    }
+  }, []);
 
   // Cerrar menú usuario al click fuera
   useEffect(() => {

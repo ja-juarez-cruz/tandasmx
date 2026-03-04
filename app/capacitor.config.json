@@ -1,5 +1,12 @@
 {
   "appId": "tanda.app.mx",
   "appName": "Tanda-App",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#F3F4F6",
+      "overlaysWebView": false
+    }
+  }
 }

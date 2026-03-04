@@ -13,6 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Barra de estado (batería, red, hora) — iconos oscuros sobre fondo claro -->
+        <item name="android:statusBarColor">#F3F4F6</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <!-- Barra de navegación (botones atrás/inicio/recientes) — iconos oscuros -->
+        <item name="android:navigationBarColor">#F3F4F6</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
 
