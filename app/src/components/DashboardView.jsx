@@ -469,7 +469,7 @@ ${publicUrl}`;
                           {p.numeroAsignado}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-xs md:text-sm text-gray-800 truncate">{p.nombre}</div>
+                          <div className="font-bold text-xs md:text-sm text-amber-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
                           <div className="text-[10px] md:text-xs text-amber-700">
                             🎂 {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
                             {' · '}hace {p.diasDesde} día{p.diasDesde !== 1 ? 's' : ''}
@@ -491,7 +491,7 @@ ${publicUrl}`;
                           {p.numeroAsignado}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-xs md:text-sm text-gray-800 truncate">{p.nombre}</div>
+                          <div className="font-bold text-xs md:text-sm text-purple-700 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
                           <div className="text-[10px] md:text-xs text-purple-700">
                             🎁 {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
                             {' · '}dentro de {proximoCumpleInfo?.dias} día{proximoCumpleInfo?.dias !== 1 ? 's' : ''}

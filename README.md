@@ -246,7 +246,7 @@ http://tandasmx-app.s3-website-us-east-1.amazonaws.com
 ```bash
 cd app
 npm run build
-aws s3 sync dist/ s3://tandasmx-app --delete --profile tandasmx
+aws s3 sync dist/ s3://app-tandasmx --delete --profile tandasmx
 ```
 
 > ⚠️ S3 static hosting sirve solo HTTP. Si necesitas HTTPS agrega CloudFront enfrente del bucket.

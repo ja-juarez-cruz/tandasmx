@@ -1,39 +1,33 @@
 import React, { useState } from 'react';
-import { Shield, Phone, ArrowRight, AlertCircle } from 'lucide-react';
+import { Shield, ArrowRight, AlertCircle } from 'lucide-react';
 import logoTanda from '../public/assets/logos/logo-tanda-512.png';
 import logoTandaSvg from '../public/assets/logos/logo-tanda.svg';
+import { PAISES, matchesStoredPhone } from '../utils/phoneUtils';
 
 export default function VerifyPhone({ tandaData, onVerified }) {
   const [phone, setPhone] = useState('');
+  const [lada, setLada] = useState('+52');
   const [error, setError] = useState('');
 
-  const formatPhoneInput = (value) => {
-    // Remover todo excepto números
-    const numbers = value.replace(/\D/g, '');
-    // Limitar a 10 dígitos
-    return numbers.slice(0, 10);
-  };
+  const digitosEsperados = PAISES.find(p => p.codigo === lada)?.digitos || 10;
 
-  const normalizePhone = (phone) => {
-    // Normalizar teléfono removiendo espacios, guiones, paréntesis, etc.
-    return phone.replace(/\D/g, '');
+  const formatPhoneInput = (value) => {
+    const numbers = value.replace(/\D/g, '');
+    return numbers.slice(0, digitosEsperados);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    if (phone.length !== 10) {
-      setError('Ingresa un número de 10 dígitos');
+
+    if (phone.length !== digitosEsperados) {
+      setError(`Ingresa un número de ${digitosEsperados} dígitos`);
       return;
     }
 
-    const phoneNormalized = normalizePhone(phone);
-
     // Buscar el teléfono en los participantes
-    const participanteEncontrado = tandaData.participantes?.find(p => {
-      const participantPhone = normalizePhone(p.telefono || '');
-      return participantPhone === phoneNormalized;
-    });
+    const participanteEncontrado = tandaData.participantes?.find(p =>
+      matchesStoredPhone(p.telefono || '', phone, lada)
+    );
 
     if (!participanteEncontrado) {
       setError('Número no registrado en esta tanda');
@@ -92,19 +86,31 @@ export default function VerifyPhone({ tandaData, onVerified }) {
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Número de Teléfono
             </label>
-            <div className="relative">
-              <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="flex border-2 border-gray-300 rounded-xl overflow-hidden focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all">
+              <select
+                value={lada}
+                onChange={(e) => {
+                  setLada(e.target.value);
+                  setPhone('');
+                  setError('');
+                }}
+                className="px-2 py-4 bg-gray-50 border-r border-gray-200 text-sm font-semibold text-gray-700 focus:outline-none"
+              >
+                {PAISES.map(p => (
+                  <option key={p.codigo} value={p.codigo}>{p.bandera} {p.codigo}</option>
+                ))}
+              </select>
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
-                placeholder="5512345678"
-                className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all text-lg font-semibold"
+                placeholder={PAISES.find(p => p.codigo === lada)?.placeholder || ''}
+                className="flex-1 px-4 py-4 bg-white focus:outline-none text-lg font-semibold"
                 autoFocus
               />
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Solo números, sin espacios ni guiones
+              {digitosEsperados} dígitos, solo números sin espacios
             </p>
           </div>
 
@@ -122,7 +128,7 @@ export default function VerifyPhone({ tandaData, onVerified }) {
           {/* Botón de submit */}
           <button
             type="submit"
-            disabled={phone.length !== 10}
+            disabled={phone.length !== digitosEsperados}
             className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             Acceder al Tablero

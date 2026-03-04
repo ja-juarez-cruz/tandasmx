@@ -3,6 +3,7 @@ import { Users, CheckCircle, Calendar, DollarSign, AlertCircle, Loader, Shield }
 import { calcularFechasRondas } from '../utils/tandaCalculos';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../utils/apiFetch';
+import { PAISES, formatPhoneForStorage } from '../utils/phoneUtils';
 
 export default function RegistroPublicoView() {
   const navigate = useNavigate();
@@ -29,6 +30,8 @@ export default function RegistroPublicoView() {
   
   const [pasoActual, setPasoActual] = useState(1);
   
+  const [lada, setLada] = useState('+52');
+
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
@@ -180,19 +183,20 @@ export default function RegistroPublicoView() {
   // Funciones de validación
   const validarTelefono = (telefono) => {
     const telefonoLimpio = telefono.replace(/\s+/g, '').replace(/[-()\s]/g, '');
-    
+
     if (telefonoLimpio.length === 0) {
       return '';
     }
-    
+
     if (!/^\d+$/.test(telefonoLimpio)) {
       return 'El teléfono solo debe contener números';
     }
-    
-    if (telefonoLimpio.length !== 10) {
-      return 'El teléfono debe tener exactamente 10 dígitos';
+
+    const digitosEsperados = PAISES.find(p => p.codigo === lada)?.digitos || 10;
+    if (telefonoLimpio.length !== digitosEsperados) {
+      return `El teléfono debe tener exactamente ${digitosEsperados} dígitos`;
     }
-    
+
     return '';
   };
 
@@ -311,7 +315,7 @@ export default function RegistroPublicoView() {
         },
         body: JSON.stringify({
           nombre: formData.nombre.trim(),
-          telefono: formData.telefono.trim(),
+          telefono: formatPhoneForStorage(lada, formData.telefono),
           email: formData.email.trim() || undefined,
           numeros: numerosSeleccionados
         })
@@ -882,22 +886,33 @@ export default function RegistroPublicoView() {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Teléfono *
+                    Teléfono (WhatsApp) *
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.telefono}
-                    onChange={handleTelefonoChange}
-                    className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                      errores.telefono 
-                        ? 'border-red-500 focus:ring-red-500 bg-red-50' 
-                        : 'border-gray-200'
-                    }`}
-                    placeholder="5512345678"
-                    pattern="[0-9]{10}"
-                    title="Ingresa un teléfono válido de 10 dígitos"
-                  />
+                  <div className={`flex border-2 rounded-xl overflow-hidden transition-all focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent ${
+                    errores.telefono ? 'border-red-500' : 'border-gray-200'
+                  }`}>
+                    <select
+                      value={lada}
+                      onChange={(e) => {
+                        setLada(e.target.value);
+                        setFormData({ ...formData, telefono: '' });
+                        setErrores({ ...errores, telefono: '' });
+                      }}
+                      className="px-2 py-3 bg-gray-50 border-r border-gray-200 text-sm font-semibold text-gray-700 focus:outline-none"
+                    >
+                      {PAISES.map(p => (
+                        <option key={p.codigo} value={p.codigo}>{p.bandera} {p.codigo}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.telefono}
+                      onChange={handleTelefonoChange}
+                      className={`flex-1 px-4 py-3 focus:outline-none ${errores.telefono ? 'bg-red-50' : 'bg-white'}`}
+                      placeholder={PAISES.find(p => p.codigo === lada)?.placeholder || ''}
+                    />
+                  </div>
                   {errores.telefono ? (
                     <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" />
@@ -905,7 +920,7 @@ export default function RegistroPublicoView() {
                     </p>
                   ) : (
                     <p className="mt-1.5 text-xs text-gray-500">
-                      10 dígitos sin espacios ni guiones
+                      {PAISES.find(p => p.codigo === lada)?.digitos} dígitos sin espacios ni guiones
                     </p>
                   )}
                 </div>

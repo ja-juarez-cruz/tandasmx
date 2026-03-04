@@ -31,11 +31,13 @@ const api = {
       const data = await api.handleResponse(response);
       
       const token = data.data?.token || data.token;
+      const refreshToken = data.data?.refreshToken || data.refreshToken;
       const userId = data.data?.id || data.userId;
       const userName = data.data?.nombre || data.nombre;
-      
+
       if (token) {
         localStorage.setItem('authToken', token);
+        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
         localStorage.setItem('userId', userId);
         localStorage.setItem('userEmail', email);
         localStorage.setItem('userName', userName);

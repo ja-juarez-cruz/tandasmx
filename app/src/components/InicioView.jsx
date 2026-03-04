@@ -128,37 +128,51 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
   // ====================================
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <style>{`
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* Filtros */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-800 mb-3">Filtrar Tandas</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Encabezado: título dinámico + botón Nueva Tanda */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-gray-800">
+          {filtroActivo === 'todas' && 'Mis Tandas'}
+          {filtroActivo === 'vigentes' && 'Vigentes'}
+          {filtroActivo === 'pasadas' && 'Pasadas'}
+          {filtroActivo === 'proximas' && 'Próximas'}
+        </h2>
+        <button
+          onClick={onCrearNueva}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-semibold hover:shadow-md hover:shadow-blue-500/30 transition-all text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Nueva Tanda
+        </button>
+      </div>
+
+      {/* Filtros compactos */}
+      <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex items-center gap-2 pb-1">
           {[
-            { key: 'todas', label: 'Todas', count: totalTandas, icon: Users, colors: 'from-blue-600 to-blue-800', shadow: 'blue' },
-            { key: 'vigentes', label: 'Vigentes', count: tandasVigentes, icon: TrendingUp, colors: 'from-green-500 to-green-600', shadow: 'green' },
-            { key: 'pasadas', label: 'Pasadas', count: tandasPasadas, icon: Calendar, colors: 'from-gray-500 to-gray-600', shadow: 'gray' },
-            { key: 'proximas', label: 'Próximas', count: tandasProximas, icon: ArrowRight, colors: 'from-blue-500 to-blue-700', shadow: 'blue' }
+            { key: 'todas',    label: 'Todas',    count: totalTandas,    icon: Users,      active: 'bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-sm' },
+            { key: 'vigentes', label: 'Vigentes', count: tandasVigentes, icon: TrendingUp, active: 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-sm' },
+            { key: 'pasadas',  label: 'Pasadas',  count: tandasPasadas,  icon: Calendar,   active: 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-sm' },
+            { key: 'proximas', label: 'Próximas', count: tandasProximas, icon: ArrowRight, active: 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-sm' }
           ].map(filtro => (
             <button
               key={filtro.key}
               onClick={() => setFiltroActivo(filtro.key)}
-              className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl font-semibold text-sm transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
                 filtroActivo === filtro.key
-                  ? `bg-gradient-to-br ${filtro.colors} text-white shadow-lg shadow-${filtro.shadow}-500/30`
-                  : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-blue-300 hover:shadow-md'
+                  ? filtro.active
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:shadow-sm'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <filtro.icon className="w-5 h-5" />
-                <span className="font-bold">{filtro.label}</span>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold min-w-[3rem] ${
-                filtroActivo === filtro.key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'
+              <filtro.icon className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{filtro.label}</span>
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                filtroActivo === filtro.key ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
               }`}>{filtro.count}</span>
             </button>
           ))}
@@ -167,18 +181,6 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
 
       {/* Carrusel */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800">
-            {filtroActivo === 'todas' && 'Todas las Tandas'}
-            {filtroActivo === 'vigentes' && 'Tandas Vigentes'}
-            {filtroActivo === 'pasadas' && 'Tandas Pasadas'}
-            {filtroActivo === 'proximas' && 'Tandas Próximas'}
-          </h2>
-          <button onClick={onCrearNueva} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all text-sm">
-            <Plus className="w-4 h-4" />Nueva Tanda
-          </button>
-        </div>
-
         {(() => {
           const tandasFiltradas = tandas.filter(tanda => filtroActivo === 'todas' || calcularEstadoTanda(tanda) === filtroActivo);
 
@@ -193,8 +195,8 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
 
           return (
             <div className="relative">
-              <div className="overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-                <div className="flex gap-4" style={{ scrollSnapType: 'x mandatory' }}>
+              <div className="overflow-x-auto pb-4 scrollbar-hide -mx-4 md:mx-0">
+                <div className="flex gap-4 px-4 md:px-0" style={{ scrollSnapType: 'x mandatory' }}>
                   {tandasFiltradas.map((tanda) => {
                     const esCumpleañera = tanda.frecuencia === 'cumpleaños';
                     const proximoCumple = esCumpleañera ? calcularProximoCumpleanos(tanda) : null;
@@ -294,7 +296,7 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                                 /* Cumpleaños actual: dentro del rango de ±3 días */
                                 <>
                                   <p className="text-[10px] font-bold text-pink-800 tracking-wide">
-                                    Cumpleaños Actual{proximoCumple.cumpleañerosActuales.length > 1 ? 's' : ''}
+                                    Cumpleaños Vigente{proximoCumple.cumpleañerosActuales.length > 1 ? 's' : ''}
                                   </p>
                                   {proximoCumple.cumpleañerosActuales.map(p => (
                                     <div key={p.participanteId} className="flex items-center gap-2 bg-pink-100 rounded-lg p-1.5">
@@ -302,7 +304,7 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                                         {p.numeroAsignado}
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-bold text-pink-900 truncate">{p.nombre.split(' ')[0]}</div>
+                                        <div className="text-xs font-bold text-pink-900 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
                                         <div className="text-[10px] text-pink-600">
                                           {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
                                           {' · '}
@@ -321,7 +323,7 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                                 <>
                                   {proximoCumple.cumpleañerosRecientes.length > 0 && (
                                     <div>
-                                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                                      <p className="text-[10px] font-semibold text-amber-800 tracking-wide mb-1">
                                         Cumpleaños Reciente{proximoCumple.cumpleañerosRecientes.length > 1 ? 's' : ''}
                                       </p>
                                       {proximoCumple.cumpleañerosRecientes.map(p => (
@@ -330,7 +332,7 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                                             {p.numeroAsignado}
                                           </div>
                                           <div className="flex-1 min-w-0">
-                                            <div className="text-xs font-bold text-gray-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
+                                            <div className="text-xs font-bold text-amber-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
                                             <div className="text-[10px] text-amber-700">
                                               {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
                                               {' · '}hace {p.diasDesde} día{p.diasDesde !== 1 ? 's' : ''}
@@ -342,7 +344,7 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                                   )}
                                   {proximoCumple.cumpleañerosProximos.length > 0 && (
                                     <div>
-                                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                                      <p className="text-[10px] font-semibold text-purple-700 tracking-wide mb-1">
                                         Próximo{proximoCumple.cumpleañerosProximos.length > 1 ? 's' : ''} Cumpleaños
                                       </p>
                                       {proximoCumple.cumpleañerosProximos.map(p => (
@@ -351,7 +353,7 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                                             {p.numeroAsignado}
                                           </div>
                                           <div className="flex-1 min-w-0">
-                                            <div className="text-xs font-bold text-gray-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
+                                            <div className="text-xs font-bold text-purple-700 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
                                             <div className="text-[10px] text-purple-700">
                                               {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
                                               {' · '}dentro de {p.diasHasta} día{p.diasHasta !== 1 ? 's' : ''}
@@ -378,7 +380,7 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                                     <div key={c.numeroAsignado} className="flex items-center gap-3">
                                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-white flex items-center justify-center font-bold shadow-lg">{c.numeroAsignado}</div>
                                       <div className="flex-1">
-                                        <div className="text-xs font-bold text-gray-800">{c.nombre.split(' ')[0]}</div>
+                                        <div className="text-xs font-bold text-gray-800">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
                                         <div className="text-xs text-pink-500 font-semibold">
                                           {proximoCumple.fecha?.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
                                         </div>
@@ -416,6 +418,8 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                       </div>
                     );
                   })}
+                  {/* Spacer para margen derecho en el último elemento del scroll */}
+                  <div className="flex-shrink-0 w-4 md:hidden" aria-hidden="true" />
                 </div>
               </div>
             </div>

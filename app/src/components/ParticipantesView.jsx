@@ -1,15 +1,16 @@
 // ParticipantesView.jsx - REFACTORIZADO con apiFetch
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Edit, Trash2, X, Save, Phone, Mail, MessageCircle, Link as LinkIcon, Copy, Check, ArrowLeft, AlertCircle, MessageSquare, FileText, MoreVertical, Calendar, Gift } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, X, Save, Phone, Mail, MessageCircle, Link as LinkIcon, Copy, Check, ArrowLeft, AlertCircle, MessageSquare, FileText, MoreVertical, Calendar, Gift, RefreshCw, ChevronDown } from 'lucide-react';
 import { calcularFechaRonda, calcularNumeroAutomaticoCumpleanos, obtenerRondaActualCumpleanos, calcularRondaActual } from '../utils/tandaCalculos';
 import { apiFetch } from '../utils/apiFetch';
+import { PAISES, formatPhoneForStorage, getDisplayPhone, detectLadaFromStored, getLocalDigits, buildWhatsAppFromStored } from '../utils/phoneUtils';
 
 const BASE_URL_ESTATIC_WEB = "https://app-tandasmx.s3.us-east-1.amazonaws.com";
 
 export default function ParticipantesView({ tandaData, setTandaData, loadAdminData, onBack }) {
   const navigate = useNavigate();
-  
+
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -22,11 +23,13 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
   const [mensajeTexto, setMensajeTexto] = useState('');
   const [comentarioTexto, setComentarioTexto] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [linkRegistro, setLinkRegistro] = useState(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(null);
-  
+  const [lada, setLada] = useState('+52');
+
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
@@ -34,6 +37,7 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
     numerosAsignados: [],
     fechaCumpleaños: ''
   });
+
 
   const esCumpleañera = tandaData?.frecuencia === 'cumpleaños';
 
@@ -169,11 +173,14 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
         throw new Error('La fecha de cumpleaños es obligatoria para tandas cumpleañeras');
       }
 
+      // Construir teléfono con lada (formato: "52-5532305905")
+      const telefonoCompleto = formatPhoneForStorage(lada, formData.telefono);
+
       if (editingParticipante) {
         // EDITAR EXISTENTE
         const requestBody = {
           nombre: formData.nombre,
-          telefono: formData.telefono,
+          telefono: telefonoCompleto,
           email: formData.email || undefined,
           numeroAsignado: formData.numerosAsignados[0],
           ...(esCumpleañera && { fechaCumpleaños: formData.fechaCumpleaños })
@@ -190,7 +197,7 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
         // CREAR - Tanda cumpleañera
         await crearParticipante({
           nombre: formData.nombre,
-          telefono: formData.telefono,
+          telefono: telefonoCompleto,
           email: formData.email || undefined,
           numeroAsignado: calcularNumeroAutomaticoCumpleanos(tandaData, formData.fechaCumpleaños),
           fechaCumpleaños: formData.fechaCumpleaños
@@ -201,7 +208,7 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
       } else {
         // CREAR - Tanda normal (múltiples números)
         const maxNumeros = Math.floor(tandaData.totalRondas * 0.5);
-        
+
         if (formData.numerosAsignados.length > maxNumeros) {
           throw new Error(`Solo puedes seleccionar hasta ${maxNumeros} números (50% del total)`);
         }
@@ -212,7 +219,7 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
         const promesas = formData.numerosAsignados.map(num =>
           crearParticipante({
             nombre: formData.nombre,
-            telefono: formData.telefono,
+            telefono: telefonoCompleto,
             email: formData.email || undefined,
             numeroAsignado: parseInt(num)
           })
@@ -324,8 +331,8 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
 
   const confirmarEnvioWhatsApp = () => {
     if (!participanteSeleccionado || !mensajeTexto) return;
-    const telefono = participanteSeleccionado.telefono.replace(/\D/g, '');
-    window.open(`https://wa.me/521${telefono}?text=${encodeURIComponent(mensajeTexto)}`, '_blank');
+    const numero = buildWhatsAppFromStored(participanteSeleccionado.telefono);
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensajeTexto)}`, '_blank');
     setShowMensajeModal(false);
     setParticipanteSeleccionado(null);
     setMensajeTexto('');
@@ -340,15 +347,17 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
 
   const openModal = (participante = null) => {
     if (participante) {
+      setLada(detectLadaFromStored(participante.telefono || ''));
       setEditingParticipante(participante);
       setFormData({
         nombre: participante.nombre,
-        telefono: participante.telefono,
+        telefono: getLocalDigits(participante.telefono || ''),
         email: participante.email || '',
         numerosAsignados: [participante.numeroAsignado],
         fechaCumpleaños: participante.fechaCumpleaños || ''
       });
     } else {
+      setLada('+52');
       setEditingParticipante(null);
       setFormData({ nombre: '', telefono: '', email: '', numerosAsignados: [], fechaCumpleaños: '' });
     }
@@ -360,6 +369,7 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
     setShowModal(false);
     setEditingParticipante(null);
     setFormData({ nombre: '', telefono: '', email: '', numerosAsignados: [], fechaCumpleaños: '' });
+    setLada('+52');
     setError(null);
   };
 
@@ -389,10 +399,15 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
     });
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try { await loadAdminData(); } finally { setRefreshing(false); }
+  };
+
   // ====================================
   // RENDER
   // ====================================
-  
+
   if (!tandaData) return null;
 
   const participantes = tandaData.participantes || [];
@@ -404,52 +419,88 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
 
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header con navegación */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Volver"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                {esCumpleañera ? <Gift className="w-7 h-7 text-blue-600" /> : <Users className="w-7 h-7 text-blue-600" />}
-                Participantes
-                {esCumpleañera && <span className="text-lg">🎂</span>}
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {tandaData.nombre} • {participantes.length} de {tandaData.totalRondas} registrados
-                {esCumpleañera && <span className="ml-2 text-blue-600 font-semibold">• Tanda Cumpleañera</span>}
-              </p>
-            </div>
-          </div>
-          
+      <div className="bg-white rounded-2xl shadow-lg p-4">
+        {/* Fila 1: Atrás + Título + Refresh */}
+        <div className="flex items-center gap-3 mb-3">
           <button
-            onClick={() => openModal()}
-            disabled={participantes.length >= tandaData.totalRondas}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-500"
+            onClick={() => navigate(-1)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+            title="Volver"
           >
-            <Plus className="w-4 h-4" />
-            Agregar
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-1.5 truncate">
+              {esCumpleañera ? <Gift className="w-5 h-5 text-blue-600 flex-shrink-0" /> : <Users className="w-5 h-5 text-blue-600 flex-shrink-0" />}
+              <span className="truncate">Participantes{esCumpleañera ? ' 🎂' : ''}</span>
+            </h2>
+            <p className="text-xs text-gray-500 truncate">
+              {tandaData.nombre} • {participantes.length}/{tandaData.totalRondas} registrados
+            </p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+            title="Actualizar lista"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
         {/* Barra de progreso */}
-        <div className="bg-gray-100 rounded-full h-3 overflow-hidden">
+        <div className="bg-gray-100 rounded-full h-2 overflow-hidden mb-1">
           <div
             className="h-full bg-gradient-to-r from-blue-500 to-blue-700 transition-all duration-500 rounded-full"
             style={{ width: `${(participantes.length / tandaData.totalRondas) * 100}%` }}
-          ></div>
+          />
         </div>
-        <p className="text-xs text-gray-600 mt-2 text-right">
+        <p className="text-xs text-gray-500 text-right mb-3">
           {Math.round((participantes.length / tandaData.totalRondas) * 100)}% completo
         </p>
+
+        {/* Fila 2: Botones de acción */}
+        {participantes.length < tandaData.totalRondas && (
+          <div className="flex gap-2">
+            <button
+              onClick={async () => { setShowLinkModal(true); await verificarLinkVigente(); }}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-md hover:shadow-purple-500/30 transition-all text-sm"
+            >
+              <LinkIcon className="w-4 h-4 flex-shrink-0" />
+              <span>Link Registro</span>
+            </button>
+            <button
+              onClick={() => openModal()}
+              disabled={participantes.length >= tandaData.totalRondas}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-semibold hover:shadow-md hover:shadow-blue-500/30 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-500"
+            >
+              <Plus className="w-4 h-4 flex-shrink-0" />
+              <span>Agregar</span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Banner informativo del link de registro */}
+      {participantes.length < tandaData.totalRondas && (
+        <div
+          onClick={async () => { setShowLinkModal(true); await verificarLinkVigente(); }}
+          className="cursor-pointer bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-3 flex items-start gap-3 hover:shadow-sm transition-all"
+        >
+          <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
+            <LinkIcon className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-purple-800">¿Sabías que puedes compartir un link de registro?</p>
+            <p className="text-xs text-purple-600 mt-0.5">
+              Los participantes se registran solos, aceptan el aviso de privacidad y quedan registrados para su score de confianza.
+            </p>
+          </div>
+          <span className="text-purple-400 text-xs flex-shrink-0 pt-0.5">Generar →</span>
+        </div>
+      )}
 
       {/* Tabla */}
       <div className="overflow-x-auto">
@@ -514,7 +565,7 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Phone className="w-4 h-4" />
-                        {participante.telefono}
+                        {getDisplayPhone(participante.telefono)}
                       </div>
                       {participante.email && (
                         <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -594,7 +645,7 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
                         </div>
                         <div className="flex items-center gap-1 text-xs text-gray-600 mb-1">
                           <Phone className="w-3 h-3" />
-                          <span className="truncate">{participante.telefono}</span>
+                          <span className="truncate">{getDisplayPhone(participante.telefono)}</span>
                         </div>
                         {esCumpleañera && participante.fechaCumpleaños && fechaPago && (
                           <div className="flex items-center gap-1 text-xs text-blue-600 font-semibold mb-1">
@@ -706,79 +757,34 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
 
       {/* Estado vacío */}
       {participantes.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-          <div className="max-w-md mx-auto">
-            <div className="p-4 bg-blue-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-              {esCumpleañera ? <Gift className="w-10 h-10 text-blue-600" /> : <Users className="w-10 h-10 text-blue-600" />}
+        <div className="bg-white rounded-2xl shadow-lg p-10 text-center">
+          <div className="max-w-sm mx-auto">
+            <div className="p-4 bg-blue-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              {esCumpleañera ? <Gift className="w-8 h-8 text-blue-600" /> : <Users className="w-8 h-8 text-blue-600" />}
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">Comienza a Agregar Participantes</h3>
-            <p className="text-gray-600 mb-6">
-              {esCumpleañera 
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Aún no hay participantes</h3>
+            <p className="text-sm text-gray-500">
+              {esCumpleañera
                 ? 'Los números se asignan automáticamente por fecha de cumpleaños'
-                : 'Puedes invitar personas de dos formas diferentes'}
+                : 'Usa el link de registro o agrégalos manualmente desde los botones de arriba'}
             </p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {((esCumpleañera && participantes.length < tandaData.totalRondas) || (!esCumpleañera && disponibles.length > 0)) && (
-                <button
-                  onClick={async () => { setShowLinkModal(true); await verificarLinkVigente(); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all text-sm"
-                >
-                  <LinkIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">Link de Registro</span>
-                  <span className="sm:hidden">Link</span>
-                  {!esCumpleañera && disponibles.length > 0 && (
-                    <div className="px-2 py-0.5 bg-white/20 rounded-full text-xs">{disponibles.length}</div>
-                  )}
-                </button>
-              )}
-              <button
-                onClick={() => openModal()}
-                disabled={esCumpleañera && participantes.length >= tandaData.totalRondas}
-                className={`p-6 bg-gradient-to-br from-blue-50 to-sky-50 border-2 border-blue-200 rounded-xl hover:border-blue-400 transition-all group disabled:opacity-50 disabled:cursor-not-allowed ${
-                  (esCumpleañera && participantes.length < tandaData.totalRondas) || !esCumpleañera ? 'sm:col-span-2' : ''
-                }`}
-              >
-                <Plus className="w-8 h-8 text-blue-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />
-                <h4 className="font-bold text-gray-800 mb-2">Agregar Manual</h4>
-                <p className="text-xs text-gray-600">
-                  {esCumpleañera ? 'Registra participantes con su fecha de cumpleaños' : 'Registra tú mismo a los participantes'}
-                </p>
-              </button>
-            </div>
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-b-2 border-blue-200 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white rounded-lg shadow-sm">
-                  {esCumpleañera ? <Gift className="w-5 h-5 text-blue-600" /> : <Users className="w-5 h-5 text-blue-600" />}
-                </div>
-                <div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                {esCumpleañera ? <Gift className="w-5 h-5 text-blue-600" /> : <Users className="w-5 h-5 text-blue-600" />}
+              </div>
+              <div>
                   <h3 className="text-sm font-bold text-gray-800">Lista de Participantes {esCumpleañera && '🎂'}</h3>
                   <p className="text-xs text-gray-600">
-                    {esCumpleañera 
+                    {esCumpleañera
                       ? participantes.length < tandaData.totalRondas ? `${tandaData.totalRondas - participantes.length} lugares disponibles` : '¡Tanda completa!'
                       : disponibles.length > 0 ? `${disponibles.length} número${disponibles.length !== 1 ? 's' : ''} disponible${disponibles.length !== 1 ? 's' : ''}` : '¡Tanda completa!'}
                   </p>
-                </div>
               </div>
-              
-              {((esCumpleañera && participantes.length < tandaData.totalRondas) || (!esCumpleañera && disponibles.length > 0)) && (
-                <button
-                  onClick={async () => { setShowLinkModal(true); await verificarLinkVigente(); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all text-sm"
-                >
-                  <LinkIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">Link de Registro</span>
-                  <span className="sm:hidden">Link</span>
-                  {!esCumpleañera && disponibles.length > 0 && (
-                    <div className="px-2 py-0.5 bg-white/20 rounded-full text-xs">{disponibles.length}</div>
-                  )}
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -810,11 +816,33 @@ export default function ParticipantesView({ tandaData, setTandaData, loadAdminDa
                 </div>
 
                 <div>
-                  <label htmlFor="modal-telefono" className="block text-sm font-semibold text-gray-700 mb-2">Teléfono *</label>
-                  <input id="modal-telefono" name="telefono" type="tel" value={formData.telefono} onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
-                    placeholder="5512345678" pattern="[0-9]{10}" required />
-                  <p className="mt-1.5 text-xs text-gray-500">10 dígitos sin espacios</p>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Teléfono *</label>
+                  <div className="flex border-2 border-gray-200 rounded-xl overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all">
+                    <select
+                      value={lada}
+                      onChange={(e) => setLada(e.target.value)}
+                      className="px-3 py-3 bg-gray-50 border-r border-gray-200 text-sm font-semibold text-gray-700 focus:outline-none flex-shrink-0"
+                    >
+                      {PAISES.map(p => (
+                        <option key={p.codigo} value={p.codigo}>
+                          {p.bandera} {p.codigo}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="modal-telefono"
+                      name="telefono"
+                      type="tel"
+                      value={formData.telefono}
+                      onChange={handleChange}
+                      className="flex-1 px-4 py-3 bg-white focus:outline-none"
+                      placeholder={PAISES.find(p => p.codigo === lada)?.placeholder || '5512345678'}
+                      required
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    {PAISES.find(p => p.codigo === lada)?.nombre} — {PAISES.find(p => p.codigo === lada)?.digitos} dígitos sin espacios
+                  </p>
                 </div>
 
                 <div>

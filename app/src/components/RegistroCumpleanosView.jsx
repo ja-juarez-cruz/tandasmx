@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Gift, Calendar, Phone, User, Mail, Cake, PartyPopper, Sparkles, Heart, AlertCircle, CheckCircle, ArrowRight, Info, HelpCircle, X } from 'lucide-react';
 import { API_BASE_URL } from '../utils/apiFetch';
+import { PAISES, formatPhoneForStorage } from '../utils/phoneUtils';
 
 export default function RegistroCumpleanosView() {
   const { token } = useParams();
@@ -17,6 +18,8 @@ export default function RegistroCumpleanosView() {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [aceptaPrivacidad, setAceptaPrivacidad] = useState(false);
   
+  const [lada, setLada] = useState('+52');
+
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
@@ -91,8 +94,9 @@ export default function RegistroCumpleanosView() {
         throw new Error('El nombre es requerido');
       }
       
-      if (!formData.telefono || formData.telefono.length !== 10) {
-        throw new Error('El telefono debe tener 10 digitos');
+      const digitosEsperados = PAISES.find(p => p.codigo === lada)?.digitos || 10;
+      if (!formData.telefono || formData.telefono.replace(/\D/g, '').length !== digitosEsperados) {
+        throw new Error(`El telefono debe tener ${digitosEsperados} digitos`);
       }
 
       if (!formData.fechaCumpleaños) {
@@ -106,7 +110,7 @@ export default function RegistroCumpleanosView() {
         },
         body: JSON.stringify({
           nombre: formData.nombre,
-          telefono: formData.telefono,
+          telefono: formatPhoneForStorage(lada, formData.telefono),
           email: formData.email || undefined,
           fechaCumpleaños: formData.fechaCumpleaños
         })
@@ -362,18 +366,33 @@ export default function RegistroCumpleanosView() {
                 <Phone className="w-4 h-4 text-purple-500" />
                 Telefono (WhatsApp) *
               </label>
-              <input
-                type="tel"
-                name="telefono"
-                value={formData.telefono}
-                onChange={handleChange}
-                placeholder="5512345678"
-                pattern="[0-9]{10}"
-                maxLength="10"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 transition-all"
-              />
-              <p className="mt-1.5 text-xs text-gray-500">10 digitos sin espacios</p>
+              <div className="flex border-2 border-gray-200 rounded-xl overflow-hidden focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-200 transition-all">
+                <select
+                  value={lada}
+                  onChange={(e) => {
+                    setLada(e.target.value);
+                    setFormData(prev => ({ ...prev, telefono: '' }));
+                  }}
+                  className="px-2 py-3 bg-gray-50 border-r border-gray-200 text-sm font-semibold text-gray-700 focus:outline-none"
+                >
+                  {PAISES.map(p => (
+                    <option key={p.codigo} value={p.codigo}>{p.bandera} {p.codigo}</option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  name="telefono"
+                  value={formData.telefono}
+                  onChange={handleChange}
+                  placeholder={PAISES.find(p => p.codigo === lada)?.placeholder || ''}
+                  maxLength={PAISES.find(p => p.codigo === lada)?.digitos || 10}
+                  required
+                  className="flex-1 px-4 py-3 bg-white focus:outline-none"
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">
+                {PAISES.find(p => p.codigo === lada)?.digitos} dígitos sin espacios
+              </p>
             </div>
 
             <div>

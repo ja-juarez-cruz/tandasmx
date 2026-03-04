@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Save, Trash2, AlertTriangle, DollarSign, Calendar, Clock, X, Info, Users, Download, Share2, Gift } from 'lucide-react';
+import { Settings, Save, Trash2, AlertTriangle, DollarSign, Calendar, Clock, X, Info, Users, Download, Share2, Gift, CheckCircle, Loader2 } from 'lucide-react';
 import { calcularFechasRondas, formatearFechaLarga, obtenerFechaHoyISO } from '../utils/tandaCalculos';
 import {
   exportarCalendarioComoImagen,
@@ -104,18 +104,6 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!esCumpleañera) {
-      const fechaSeleccionada = new Date(formData.fechaInicio);
-      const fechaActual = new Date();
-      fechaActual.setHours(0, 0, 0, 0);
-      
-      if (fechaSeleccionada < fechaActual) {
-        setError('La fecha de inicio no puede ser anterior a la fecha actual');
-        return;
-      }
-    }
-    
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -125,7 +113,6 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
         nombre: formData.nombre,
         montoPorRonda: parseFloat(formData.montoPorRonda),
         diasRecordatorio: parseInt(formData.diasRecordatorio),
-        totalRondas: parseInt(formData.totalRondas)
       };
 
       if (!esCumpleañera) {
@@ -134,16 +121,14 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
       }
       
       // ✅ CAMBIO: usar apiFetch en lugar de fetch directo
-      const data = await apiFetch(`/tandas/${tandaData.tandaId}`, {
+      await apiFetch(`/tandas/${tandaData.tandaId}`, {
         method: 'PUT',
         body: JSON.stringify(payload)
       });
 
-      if (data.success) {
-        setSuccess('✅ Configuración actualizada exitosamente');
-        await loadAdminData();
-        setTimeout(() => setSuccess(null), 3000);
-      }
+      // Si apiFetch no lanzó excepción, el guardado fue exitoso
+      setSuccess('Registro actualizado exitosamente');
+      setTimeout(() => setSuccess(null), 4000);
     } catch (error) {
       console.error('Error actualizando configuración:', error);
       setError(error.message || 'Error al actualizar configuración');
@@ -193,8 +178,8 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
     <div className="space-y-4 md:space-y-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className={`bg-gradient-to-r ${esCumpleañera ? 'from-pink-600 to-purple-600' : 'from-blue-600 to-blue-800'} rounded-2xl md:rounded-3xl shadow-xl p-4 md:p-6 text-white`}>
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 md:p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 md:p-3 bg-white/20 rounded-xl backdrop-blur-sm flex-shrink-0">
             {esCumpleañera ? <Gift className="w-6 h-6 md:w-7 md:h-7" /> : <Settings className="w-6 h-6 md:w-7 md:h-7" />}
           </div>
           <div className="flex-1 min-w-0">
@@ -206,339 +191,120 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
         </div>
       </div>
 
-      {/* Mensajes */}
       {success && (
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl md:rounded-2xl p-3 md:p-4 animate-fadeIn">
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl md:rounded-2xl p-3 md:p-4 flex items-center gap-2">
+          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
           <p className="text-green-700 font-semibold text-sm md:text-base">{success}</p>
         </div>
       )}
 
       {error && (
-        <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl md:rounded-2xl p-3 md:p-4 animate-fadeIn">
+        <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl md:rounded-2xl p-3 md:p-4">
           <p className="text-red-600 font-semibold text-sm md:text-base">{error}</p>
         </div>
       )}
 
       {/* Formulario Principal */}
-      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
-        {/* Información General */}
-        <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border-2 border-gray-100 p-4 md:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <div className={`p-2 ${esCumpleañera ? 'bg-pink-100' : 'bg-blue-100'} rounded-lg`}>
+      <form id="config-form" onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+
+        {/* ── 1. Información General ── */}
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <div className={`p-2 ${esCumpleañera ? 'bg-pink-100' : 'bg-blue-100'} rounded-lg flex-shrink-0`}>
               <Info className={`w-4 h-4 md:w-5 md:h-5 ${esCumpleañera ? 'text-pink-600' : 'text-blue-600'}`} />
             </div>
-            <h3 className="text-base md:text-lg font-bold text-gray-800">Información General</h3>
-          </div>
-          
-          {/* Nombre */}
-          <div className="mb-4">
-            <label htmlFor="config-nombre" className="block text-xs md:text-sm font-semibold text-gray-700 mb-2">
-              Nombre de la Tanda
-            </label>
-            <input
-              id="config-nombre"
-              name="nombre"
-              type="text"
-              value={formData.nombre}
-              onChange={handleChange}
-              className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
-              required
-            />
+            <h3 className="text-base md:text-lg font-bold text-gray-800 flex-1">Información General</h3>
+            <button
+              type="submit"
+              disabled={loading}
+              title="Guardar cambios"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-600 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+            >
+              {loading
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Save className="w-3.5 h-3.5" />
+              }
+              <span>Guardar</span>
+            </button>
           </div>
 
-          {/* Monto y Fecha */}
-          <div className={`grid grid-cols-1 ${esCumpleañera ? '' : 'md:grid-cols-2'} gap-4`}>
+          <div className="space-y-4">
+            {/* Nombre */}
             <div>
-              <label htmlFor="config-monto" className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
-                Monto por Ronda
+              <label htmlFor="config-nombre" className="block text-xs md:text-sm font-semibold text-gray-600 mb-1.5">
+                Nombre de la Tanda
               </label>
               <input
-                id="config-monto"
-                name="montoPorRonda"
-                type="number"
-                min="1"
-                step="0.01"
-                value={formData.montoPorRonda}
+                id="config-nombre"
+                name="nombre"
+                type="text"
+                value={formData.nombre}
                 onChange={handleChange}
-                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
+                className="w-full px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
                 required
               />
             </div>
 
-            {!esCumpleañera && (
+            {/* Monto y Fecha */}
+            <div className={`grid grid-cols-1 ${esCumpleañera ? '' : 'md:grid-cols-2'} gap-4`}>
               <div>
-                <label htmlFor="config-fecha" className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 md:w-4 md:h-4" />
-                  Fecha de Inicio
+                <label htmlFor="config-monto" className="block text-xs md:text-sm font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+                  <DollarSign className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
+                  Monto por Ronda
                 </label>
                 <input
-                  id="config-fecha"
-                  name="fechaInicio"
-                  type="date"
-                  min={obtenerFechaHoyISO()}
-                  value={formData.fechaInicio}
+                  id="config-monto"
+                  name="montoPorRonda"
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={formData.montoPorRonda}
                   onChange={handleChange}
-                  className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
                   required
                 />
-                {formData.fechaInicio && (
-                  <p className="mt-1 text-[10px] md:text-xs text-gray-500">
-                    <strong>{formatearFechaLarga(formData.fechaInicio)}</strong>
-                  </p>
-                )}              
               </div>
-            )}
+
+              {!esCumpleañera && (
+                <div>
+                  <label htmlFor="config-fecha" className="block text-xs md:text-sm font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
+                    Fecha de Inicio
+                  </label>
+                  <input
+                    id="config-fecha"
+                    name="fechaInicio"
+                    type="date"
+                    value={formData.fechaInicio}
+                    onChange={handleChange}
+                    className="w-full px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                    required
+                  />
+                  {formData.fechaInicio && (
+                    <p className="mt-1 text-[10px] md:text-xs text-gray-400">
+                      {formatearFechaLarga(formData.fechaInicio)}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* CALENDARIOS */}
-          {esCumpleañera ? (
-            /* CALENDARIO DE CUMPLEAÑOS */
-            <div className="mt-4 p-3 md:p-4 bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-200 rounded-xl" ref={fechasCalendarRef}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Gift className="w-4 h-4 text-pink-600" />
-                  <div className="text-xs md:text-sm font-semibold text-pink-800">
-                    Calendario de Cumpleaños 🎂
-                  </div>
-                </div>
-                
-                {/* Botones de exportar */}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={exportarComoImagen}
-                    disabled={exportando}
-                    className="p-2 bg-white border border-pink-300 text-pink-600 rounded-lg hover:bg-pink-50 transition-all disabled:opacity-50 flex items-center gap-1 text-xs"
-                    title="Descargar imagen"
-                  >
-                    {exportando ? (
-                      <div className="w-3 h-3 border-2 border-pink-600 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <Download className="w-3 h-3" />
-                    )}
-                    <span className="hidden sm:inline">Descargar</span>
-                  </button>
-                  {/*
-                  <button
-                    type="button"
-                    onClick={compartirPorWhatsApp}
-                    disabled={exportando}
-                    className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 flex items-center gap-1 text-xs"
-                    title="Compartir por WhatsApp"
-                  >
-                    {exportando ? (
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <Share2 className="w-3 h-3" />
-                    )}
-                    <span className="hidden sm:inline">Compartir</span>
-                  </button> 
-                  */}
-                </div>
-              </div>
-
-              <div className="scroll-container max-h-48 md:max-h-64 overflow-y-auto space-y-2">
-                {(() => {
-                  const participantes = tandaData.participantes || [];
-                  
-                  const participantesOrdenados = [...participantes]
-                    .filter(p => p.fechaCumpleaños)
-                    .sort((a, b) => {
-                      const fechaA = new Date(a.fechaCumpleaños);
-                      const fechaB = new Date(b.fechaCumpleaños);
-                      
-                      const mesA = fechaA.getMonth();
-                      const diaA = fechaA.getDate();
-                      const mesB = fechaB.getMonth();
-                      const diaB = fechaB.getDate();
-
-                      if (mesA !== mesB) return mesA - mesB;
-                      if (diaA !== diaB) return diaA - diaB;
-                      
-                      return new Date(a.createdAt) - new Date(b.createdAt);
-                    });
-
-                  if (participantesOrdenados.length === 0) {
-                    return (
-                      <div className="text-center py-8 text-gray-500 text-sm">
-                        No hay participantes registrados aún
-                      </div>
-                    );
-                  }
-
-                  return participantesOrdenados.map((participante, index) => {
-                    const fechaCumple = new Date(participante.fechaCumpleaños + 'T00:00:00');
-                    const primerNombre = participante.nombre.split(' ').slice(0, 2).join(' ');
-                    
-                    return (
-                      <div
-                        key={participante.participanteId}
-                        className={`flex justify-between items-center p-2 rounded-lg ${
-                          index % 2 === 0 ? "bg-pink-100" : "bg-white"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-500 text-white rounded-lg flex items-center justify-center font-bold text-xs">
-                            {participante.numeroAsignado}
-                          </div>
-                          <span className="text-[10px] md:text-xs font-semibold text-pink-900">
-                            {primerNombre}
-                          </span>
-                        </div>
-
-                        <div className="text-right">
-                          <div className="text-[10px] md:text-xs text-pink-700 font-semibold flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {fechaCumple.toLocaleDateString("es-MX", {
-                              day: "numeric",
-                              month: "long"
-                            })}
-                          </div>
-                          <div className="text-[9px] md:text-[10px] text-pink-600">
-                            Recibe: ${(tandaData.montoPorRonda * (tandaData.totalRondas - 1)).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-
-              <div className="mt-3 text-[10px] md:text-xs text-pink-600 border-t border-pink-300 pt-2">
-                🎁 <strong>Cada persona recibe</strong> en su cumpleaños: ${tandaData.montoPorRonda?.toLocaleString()} × {tandaData.totalRondas - 1} participantes = ${(tandaData.montoPorRonda * (tandaData.totalRondas - 1))?.toLocaleString()}
-              </div>
-            </div>
-          ) : (
-            /* CALENDARIO NORMAL DE RONDAS */
-            formData.fechaInicio && formData.frecuencia && (
-              <div className="mt-4 p-3 md:p-4 bg-gradient-to-br from-blue-50 to-sky-50 border-2 border-blue-200 rounded-xl" ref={fechasCalendarRef}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    <div className="text-xs md:text-sm font-semibold text-blue-800">
-                      Fechas calculadas
-                    </div>
-                  </div>
-                  
-                  {/* Botones de exportar */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={exportarComoImagen}
-                      disabled={exportando}
-                      className="p-2 bg-white border border-pink-300 text-pink-600 rounded-lg hover:bg-pink-50 transition-all disabled:opacity-50 flex items-center gap-1 text-xs"
-                      title="Descargar imagen"
-                    >
-                      {exportando ? (
-                        <div className="w-3 h-3 border-2 border-pink-600 border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <Download className="w-3 h-3" />
-                      )}
-                      <span className="hidden sm:inline">Descargar</span>
-                    </button>
-                    {/*<button
-                      type="button"
-                      onClick={compartirPorWhatsApp}
-                      disabled={exportando}
-                      className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 flex items-center gap-1 text-xs"
-                      title="Compartir por WhatsApp"
-                    >
-                      {exportando ? (
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <Share2 className="w-3 h-3" />
-                      )}
-                      <span className="hidden sm:inline">Compartir</span>
-                    </button>*/}
-                  </div>
-                </div>
-
-                <div className="scroll-container max-h-48 md:max-h-64 overflow-y-auto space-y-2">
-                  {(() => {
-                    const participantes = tandaData.participantes || [];
-                    const participantesPorNumero = {};
-                    participantes.forEach(p => {
-                      participantesPorNumero[p.numeroAsignado] = p;
-                    });
-
-                    const fechasRondas = calcularFechasRondas(
-                      formData.fechaInicio,
-                      tandaData.totalRondas,
-                      formData.frecuencia
-                    );
-
-                    return fechasRondas.map((ronda, index) => {
-                      const participante = participantesPorNumero[ronda.numero];
-                      const primerNombre = participante ? participante.nombre.split(' ')[0] : null;
-
-                      return (
-                        <div
-                          key={ronda.numero}
-                          className={`flex justify-between items-center p-2 rounded-lg ${
-                            ronda.numero % 2 === 0 ? "bg-blue-100" : "bg-white"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0">
-                              {ronda.numero}
-                            </div>
-                            {primerNombre ? (
-                              <span className="text-[10px] md:text-xs font-semibold text-blue-900">
-                                {primerNombre}
-                              </span>
-                            ) : (
-                              <span className="text-[9px] md:text-[10px] text-gray-400 italic">
-                                Sin asignar
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="text-right">
-                            <div className="text-[10px] md:text-xs text-blue-700 font-semibold">
-                              Inicio:{" "}
-                              {ronda.fechaInicio.toLocaleDateString("es-MX", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </div>
-
-                            <div className="text-[9px] md:text-[10px] text-blue-600">
-                              Fecha límite de pago:{" "}
-                              {ronda.fechaLimite.toLocaleDateString("es-MX", {
-                                day: "numeric",
-                                month: "short",
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-
-                <div className="mt-3 text-[10px] md:text-xs text-blue-600 border-t border-blue-300 pt-2">
-                  💡 <strong>Fecha límite de pago</strong> = Fecha inicio de ronda + 5 días
-                </div>
-              </div>
-            )
-          )}
         </div>
 
-        {/* Configuración de Rondas */}
-        <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border-2 border-gray-100 p-4 md:p-6">
-          <div className="flex items-center gap-2 mb-4">
+        {/* ── 2. Configuración de Rondas ── */}
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6">
+          <div className="flex items-center gap-2 mb-5">
             <div className="p-2 bg-purple-100 rounded-lg">
               <Users className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
             </div>
             <h3 className="text-base md:text-lg font-bold text-gray-800">Configuración de Rondas</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="config-total-rondas" className="block text-xs md:text-sm font-semibold text-gray-700 mb-2">
-                Total de Rondas {esCumpleañera && <span className="text-blue-600">(Editable)</span>}
+              <label htmlFor="config-total-rondas" className="block text-xs md:text-sm font-semibold text-gray-600 mb-1.5">
+                Total de Rondas{esCumpleañera && <span className="ml-1 text-blue-500 font-normal">(editable)</span>}
               </label>
               <input
                 id="config-total-rondas"
@@ -548,69 +314,179 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
                 value={esCumpleañera ? formData.totalRondas || tandaData.totalRondas : tandaData.totalRondas}
                 onChange={esCumpleañera ? handleChange : undefined}
                 readOnly={!esCumpleañera}
-                className={`w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base border-2 rounded-xl transition-all ${
-                  esCumpleañera 
-                    ? 'border-gray-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white text-gray-800' 
-                    : 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed'
+                className={`w-full px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base border-2 rounded-xl transition-all ${
+                  esCumpleañera
+                    ? 'border-gray-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white text-gray-800'
+                    : 'border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed'
                 }`}
               />
-              <p className="mt-1 text-[10px] md:text-xs text-gray-500 flex items-start gap-1">
-                <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                <span>
-                  {esCumpleañera 
-                    ? 'Ajusta el total según los participantes con cumpleaños' 
-                    : 'No se puede modificar después de crear la tanda'}
-                </span>
-              </p>
+              {!esCumpleañera && (
+                <p className="mt-1 text-[10px] md:text-xs text-gray-400 flex items-center gap-1">
+                  <Info className="w-3 h-3 flex-shrink-0" />
+                  No se puede modificar después de crear la tanda
+                </p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="config-frecuencia" className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                <Clock className="w-3 h-3 md:w-4 md:h-4" />
+              <label htmlFor="config-frecuencia" className="block text-xs md:text-sm font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+                <Clock className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
                 Frecuencia
               </label>
               <input
                 id="config-frecuencia"
                 type="text"
                 value={
-                  formData.frecuencia === 'semanal' ? 'Semanal (cada 7 días)' : 
-                  formData.frecuencia === 'quincenal' ? 'Quincenal' : 
+                  formData.frecuencia === 'semanal'    ? 'Semanal (cada 7 días)' :
+                  formData.frecuencia === 'quincenal'  ? 'Quincenal' :
                   formData.frecuencia === 'cumpleaños' ? 'Por Cumpleaños 🎂' :
                   'Mensual'
                 }
                 readOnly
-                className="w-full px-3 md:px-4 py-2 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
+                className="w-full px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base border-2 border-gray-100 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
               />
-              <p className="mt-1 text-[10px] md:text-xs text-gray-500 flex items-start gap-1">
-                <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                <span>No se puede modificar después de crear la tanda</span>
+              <p className="mt-1 text-[10px] md:text-xs text-gray-400 flex items-center gap-1">
+                <Info className="w-3 h-3 flex-shrink-0" />
+                No se puede modificar después de crear la tanda
               </p>
             </div>
           </div>
         </div>
 
-        {/* Botón Guardar */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full px-4 md:px-6 py-3 md:py-4 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm md:text-base"
-        >
-          {loading ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              Guardando...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 md:w-5 md:h-5" />
-              Guardar Cambios
-            </>
-          )}
-        </button>
       </form>
 
+      {/* ── 3. Fechas Calculadas ── */}
+      {esCumpleañera ? (
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6" ref={fechasCalendarRef}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-pink-100 rounded-lg">
+                <Gift className="w-4 h-4 md:w-5 md:h-5 text-pink-600" />
+              </div>
+              <h3 className="text-base md:text-lg font-bold text-gray-800">Calendario de Cumpleaños 🎂</h3>
+            </div>
+            <button
+              type="button"
+              onClick={exportarComoImagen}
+              disabled={exportando}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+            >
+              {exportando
+                ? <div className="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
+                : <Download className="w-3 h-3" />}
+              Descargar
+            </button>
+          </div>
+
+          <div className="scroll-container max-h-96 md:max-h-[32rem] overflow-y-auto space-y-2">
+            {(() => {
+              const participantesOrdenados = [...(tandaData.participantes || [])]
+                .filter(p => p.fechaCumpleaños)
+                .sort((a, b) => {
+                  const fa = new Date(a.fechaCumpleaños), fb = new Date(b.fechaCumpleaños);
+                  if (fa.getMonth() !== fb.getMonth()) return fa.getMonth() - fb.getMonth();
+                  if (fa.getDate()  !== fb.getDate())  return fa.getDate()  - fb.getDate();
+                  return new Date(a.createdAt) - new Date(b.createdAt);
+                });
+
+              if (participantesOrdenados.length === 0) {
+                return <div className="text-center py-8 text-gray-400 text-sm">No hay participantes registrados aún</div>;
+              }
+
+              return participantesOrdenados.map((participante, index) => {
+                const fechaCumple = new Date(participante.fechaCumpleaños + 'T00:00:00');
+                const primerNombre = participante.nombre.split(' ').slice(0, 2).join(' ');
+                return (
+                  <div key={participante.participanteId} className={`flex justify-between items-center p-2.5 rounded-lg ${index % 2 === 0 ? 'bg-pink-50' : 'bg-white'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-500 text-white rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0">
+                        {participante.numeroAsignado}
+                      </div>
+                      <span className="text-xs font-semibold text-gray-800">{primerNombre}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-pink-700 font-semibold">
+                        {fechaCumple.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                      </div>
+                      <div className="text-[10px] text-gray-400">
+                        Recibe: ${(tandaData.montoPorRonda * (tandaData.totalRondas - 1)).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-400">
+            🎁 Cada persona recibe en su cumpleaños: <strong className="text-gray-600">${tandaData.montoPorRonda?.toLocaleString()} × {tandaData.totalRondas - 1} = ${(tandaData.montoPorRonda * (tandaData.totalRondas - 1))?.toLocaleString()}</strong>
+          </div>
+        </div>
+      ) : (
+        formData.fechaInicio && formData.frecuencia && (
+          <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6" ref={fechasCalendarRef}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Calendar className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-gray-800">Fechas Calculadas</h3>
+              </div>
+              <button
+                type="button"
+                onClick={exportarComoImagen}
+                disabled={exportando}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+              >
+                {exportando
+                  ? <div className="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
+                  : <Download className="w-3 h-3" />}
+                Descargar
+              </button>
+            </div>
+
+            <div className="scroll-container max-h-96 md:max-h-[32rem] overflow-y-auto space-y-2">
+              {(() => {
+                const participantes = tandaData.participantes || [];
+                const participantesPorNumero = {};
+                participantes.forEach(p => { participantesPorNumero[p.numeroAsignado] = p; });
+
+                return calcularFechasRondas(formData.fechaInicio, tandaData.totalRondas, formData.frecuencia).map((ronda, index) => {
+                  const participante = participantesPorNumero[ronda.numero];
+                  const primerNombre = participante ? participante.nombre.split(' ')[0] : null;
+                  return (
+                    <div key={ronda.numero} className={`flex justify-between items-center p-2.5 rounded-lg ${ronda.numero % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0">
+                          {ronda.numero}
+                        </div>
+                        {primerNombre
+                          ? <span className="text-xs font-semibold text-gray-800">{primerNombre}</span>
+                          : <span className="text-[10px] text-gray-400 italic">Sin asignar</span>}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-blue-700 font-semibold">
+                          {ronda.fechaInicio.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          Límite: {ronda.fechaLimite.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-400">
+              💡 <strong className="text-gray-600">Fecha límite de pago</strong> = Fecha inicio de ronda + 5 días
+            </div>
+          </div>
+        )
+      )}
+
       {/* Zona de Peligro */}
-      <div className="bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-300 rounded-xl md:rounded-2xl p-4 md:p-6">
+      {/*<div className="bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-300 rounded-xl md:rounded-2xl p-4 md:p-6">
         <div className="flex items-start gap-3 mb-4">
           <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
             <AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-red-600" />
@@ -638,7 +514,7 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
             participantes, pagos, historial y configuración. Esta acción no se puede deshacer.
           </p>
         </div>
-      </div>
+      </div>*/}
 
       {/* Modal de Confirmación de Eliminación */}
       {showDeleteModal && (

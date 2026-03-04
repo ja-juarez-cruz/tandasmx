@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CreditCard, CheckCircle, XCircle, Clock, Filter, RefreshCw, X, Save, DollarSign, Calendar, FileText, AlertCircle } from 'lucide-react';
+import { CreditCard, CheckCircle, XCircle, Clock, Filter, RefreshCw, X, Save, DollarSign, Calendar, FileText, AlertCircle, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { calcularRondaActual, calcularEstadoPorParticipante } from '../utils/tandaCalculos';
 import { apiFetch } from '../utils/apiFetch';
 
@@ -11,6 +11,7 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [pagoSeleccionado, setPagoSeleccionado] = useState(null);
   const [clickTimeout, setClickTimeout] = useState(null);
+  const [showInstrucciones, setShowInstrucciones] = useState(false);
   const [editFormData, setEditFormData] = useState({
     fechaPago: '',
     metodoPago: 'Transferencia',
@@ -297,34 +298,88 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
     return estado === filtroEstado;
   });
 
+  const countAlCorriente = participantes.filter(p =>
+    calcularEstadoPorParticipante(matrizPagos, tandaData, p.participanteId).estado === 'al_corriente'
+  ).length;
+  const countAtrasado = participantes.filter(p =>
+    calcularEstadoPorParticipante(matrizPagos, tandaData, p.participanteId).estado === 'atrasado'
+  ).length;
+
   const estaPagado = (participanteId, ronda) => {
     if (!matrizPagos || !Array.isArray(matrizPagos)) return false;
     return matrizPagos.some(p => p.participanteId === participanteId && p.ronda === ronda && p.pagado);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 p-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <CreditCard className="w-7 h-7 text-blue-600" />
-              Control de Pagos
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {tandaData.nombre} • Ronda {rondaActual} de {tandaData.totalRondas}
+    <div className="space-y-4">
+      {/* Header con filtros integrados */}
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4">
+        {/* Fila 1: Título + Refresh */}
+        <div className="flex items-center gap-3 mb-3">
+          <CreditCard className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-bold text-gray-800 truncate">Control de Pagos</h2>
+            <p className="text-xs text-gray-500 truncate">
+              {tandaData.nombre} • Ronda <span className="font-semibold text-green-600">{rondaActual}</span> de {tandaData.totalRondas}
             </p>
           </div>
           <button
             onClick={cargarMatrizPagos}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-50"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+            title="Actualizar pagos"
           >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            Actualizar
+            <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
+
+        {/* Fila 2: Filtros como chips */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+          {[
+            { key: 'todos',       label: 'Todos',      count: participantes.length, active: 'bg-gradient-to-r from-blue-600 to-blue-800 text-white' },
+            { key: 'al_corriente',label: 'Al corriente',count: countAlCorriente,    active: 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' },
+            { key: 'atrasado',    label: 'Atrasados',  count: countAtrasado,        active: 'bg-gradient-to-r from-red-500 to-red-600 text-white' }
+          ].map(filtro => (
+            <button
+              key={filtro.key}
+              onClick={() => setFiltroEstado(filtro.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+                filtroEstado === filtro.key
+                  ? filtro.active + ' shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <span>{filtro.label}</span>
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                filtroEstado === filtro.key ? 'bg-white/25 text-white' : 'bg-white text-gray-500'
+              }`}>{filtro.count}</span>
+            </button>
+          ))}
+
+          {/* Instrucciones colapsables — chip al final */}
+          <button
+            onClick={() => setShowInstrucciones(v => !v)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ml-auto ${
+              showInstrucciones ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {showInstrucciones ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            Instrucciones
+          </button>
+        </div>
+
+        {/* Panel de instrucciones colapsable */}
+        {showInstrucciones && (
+          <div className="mt-3 pt-3 border-t border-blue-100 text-sm text-blue-800 animate-fadeIn">
+            <ul className="space-y-1 list-disc list-inside text-xs">
+              <li><strong>1 click:</strong> Marcar/desmarcar pago</li>
+              <li><strong>Doble click:</strong> Editar detalles del pago (solo pagos marcados)</li>
+              <li><strong>Pagos secuenciales:</strong> Debes pagar las rondas en orden (1, 2, 3...)</li>
+              <li><strong>🔒 Datos protegidos:</strong> Si un pago tiene notas, monto u otras personalizaciones, se conservan aunque lo desmarques</li>
+              <li><strong>⭐ Turno actual:</strong> El participante marcado con estrella es quien recibe en la ronda actual</li>
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -334,51 +389,6 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
           <p className="text-red-600 font-semibold text-sm">{error}</p>
         </div>
       )}
-
-      {/* Filtros */}
-      <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 p-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold text-gray-700">Filtrar:</span>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { key: 'todos', label: `Todos (${participantes.length})`, gradient: 'from-blue-600 to-blue-800', shadow: 'blue' },
-              { key: 'al_corriente', label: 'Al Corriente', gradient: 'from-green-500 to-emerald-600', shadow: 'green' },
-              { key: 'atrasado', label: 'Atrasados', gradient: 'from-red-500 to-red-600', shadow: 'red' }
-            ].map(filtro => (
-              <button
-                key={filtro.key}
-                onClick={() => setFiltroEstado(filtro.key)}
-                className={`px-4 py-2 rounded-xl font-semibold transition-all ${
-                  filtroEstado === filtro.key
-                    ? `bg-gradient-to-r ${filtro.gradient} text-white shadow-lg shadow-${filtro.shadow}-500/30`
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {filtro.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Instrucciones */}
-      <div className="bg-gradient-to-br from-blue-50 to-sky-50 border-2 border-blue-200 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-800">
-            <p className="font-semibold mb-2">💡 Instrucciones de uso:</p>
-            <ul className="space-y-1 list-disc list-inside">
-              <li><strong>1 click:</strong> Marcar/desmarcar pago</li>
-              <li><strong>Doble click:</strong> Editar detalles del pago (solo pagos marcados)</li>
-              <li><strong>Pagos secuenciales:</strong> Debes pagar las rondas en orden (1, 2, 3...)</li>
-              <li><strong>🔒 Datos protegidos:</strong> Si un pago tiene notas, monto diferente u otras personalizaciones, estos datos se conservan aunque lo desmarques</li>
-            </ul>
-          </div>
-        </div>
-      </div>
 
       {/* Matriz de Pagos */}
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-gray-100">
@@ -417,14 +427,26 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
                     const { estado } = calcularEstadoPorParticipante(matrizPagos, tandaData, participante.participanteId);
                     
                     return (
-                      <tr key={participante.participanteId} className="hover:bg-gray-50">
-                        <td className="px-3 md:px-4 py-3 sticky left-0 bg-white z-10 w-[50%] md:w-auto">
+                      <tr key={participante.participanteId} className={`hover:bg-gray-50 ${participante.numeroAsignado === rondaActual ? 'bg-green-50/60' : ''}`}>
+                        <td className={`px-3 md:px-4 py-3 sticky left-0 z-10 w-[50%] md:w-auto ${participante.numeroAsignado === rondaActual ? 'bg-green-50' : 'bg-white'}`}>
                           <div className="flex items-center gap-2 md:gap-3">
-                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white flex items-center justify-center font-bold text-sm md:text-base shadow-md flex-shrink-0">
+                            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center font-bold text-sm md:text-base shadow-md flex-shrink-0 ${
+                              participante.numeroAsignado === rondaActual
+                                ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
+                                : 'bg-gradient-to-br from-blue-600 to-blue-800 text-white'
+                            }`}>
                               {participante.numeroAsignado}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-gray-800 text-xs md:text-sm truncate">{participante.nombre}</div>
+                              <div className="flex items-center gap-1">
+                                <span className="font-semibold text-gray-800 text-xs md:text-sm truncate">{participante.nombre}</span>
+                                {participante.numeroAsignado === rondaActual && (
+                                  <span className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">
+                                    <Star className="w-2.5 h-2.5 fill-green-600 text-green-600" />
+                                    <span className="hidden sm:inline">Turno</span>
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[10px] md:text-xs text-gray-500 truncate hidden md:block">{participante.telefono}</div>
                             </div>
                           </div>
@@ -638,6 +660,8 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   );
