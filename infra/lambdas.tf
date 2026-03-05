@@ -60,7 +60,14 @@ resource "aws_iam_policy" "dynamodb_rw_policy" {
           "arn:aws:dynamodb:*:*:table/links_registro",
           "arn:aws:dynamodb:*:*:table/links_registro/index/*",
           "arn:aws:dynamodb:*:*:table/auth-password-reset-tokens",
-          "arn:aws:dynamodb:*:*:table/auth-password-reset-tokens/index/*"
+          "arn:aws:dynamodb:*:*:table/auth-password-reset-tokens/index/*",
+          "arn:aws:dynamodb:*:*:table/${aws_dynamodb_table.score_events.name}",
+          "arn:aws:dynamodb:*:*:table/${aws_dynamodb_table.score_events.name}/index/*",
+          "arn:aws:dynamodb:*:*:table/${aws_dynamodb_table.score_snapshots.name}",
+          "arn:aws:dynamodb:*:*:table/${aws_dynamodb_table.tanda_access_rules.name}",
+          "arn:aws:dynamodb:*:*:table/${aws_dynamodb_table.score_leaderboard.name}",
+          "arn:aws:dynamodb:*:*:table/${aws_dynamodb_table.usuarios_admin.name}",
+          "arn:aws:dynamodb:*:*:table/${aws_dynamodb_table.usuarios_admin.name}/index/*",
         ]
       }
     ]
@@ -197,6 +204,35 @@ data "archive_file" "change_password" {
   output_path = "${path.module}/build/lambda_change_password.zip"
 }
 
+data "archive_file" "calculate_score" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/calculate_score"
+  output_path = "${path.module}/build/calculate_score.zip"
+}
+
+data "archive_file" "update_score_event" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/update_score_event"
+  output_path = "${path.module}/build/update_score_event.zip"
+}
+
+data "archive_file" "get_score" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/get_score"
+  output_path = "${path.module}/build/get_score.zip"
+}
+
+data "archive_file" "get_leaderboard" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/get_leaderboard"
+  output_path = "${path.module}/build/get_leaderboard.zip"
+}
+
+data "archive_file" "check_tanda_access" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/check_tanda_access"
+  output_path = "${path.module}/build/check_tanda_access.zip"
+}
 
 # -------------------------------------------------------------------
 # Lambda: AUTENTICACIÓN
@@ -476,4 +512,153 @@ resource "aws_lambda_function" "change_password" {
     Name        = "auth-change-password"
     Environment = var.environment
   }
+}
+
+# -------------------------------------------------------------------
+# Lambda: CALCULATE SCORE (interna, invocada por update_score_event)
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "calculate_score" {
+  filename         = data.archive_file.calculate_score.output_path
+  function_name    = "tandasmx-calculate-score"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.calculate_score.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 30
+
+  environment {
+    variables = {
+      ENVIRONMENT           = var.environment
+      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
+      SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
+      SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
+      LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
+      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
+      BASE_SCORE            = "20"
+    }
+  }
+
+  tags = { Name = "tandasmx-calculate-score", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
+# Lambda: UPDATE SCORE EVENT
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "update_score_event" {
+  filename         = data.archive_file.update_score_event.output_path
+  function_name    = "tandasmx-update-score-event"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.update_score_event.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 30
+
+  environment {
+    variables = {
+      ENVIRONMENT                = var.environment
+      USERS_TABLE                = aws_dynamodb_table.usuarios_admin.name
+      SCORE_EVENTS_TABLE         = aws_dynamodb_table.score_events.name
+      SCORE_SNAPSHOTS_TABLE      = aws_dynamodb_table.score_snapshots.name
+      LEADERBOARD_TABLE          = aws_dynamodb_table.score_leaderboard.name
+      ACCESS_RULES_TABLE         = aws_dynamodb_table.tanda_access_rules.name
+      BASE_SCORE                 = "20"
+      CALCULATE_SCORE_LAMBDA_ARN = aws_lambda_function.calculate_score.arn
+    }
+  }
+
+  tags = { Name = "tandasmx-update-score-event", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
+# Lambda: GET SCORE
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "get_score" {
+  filename         = data.archive_file.get_score.output_path
+  function_name    = "tandasmx-get-score"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.get_score.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 15
+
+  environment {
+    variables = {
+      ENVIRONMENT           = var.environment
+      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
+      SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
+      SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
+      LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
+      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
+      BASE_SCORE            = "20"
+    }
+  }
+
+  tags = { Name = "tandasmx-get-score", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
+# Lambda: GET LEADERBOARD
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "get_leaderboard" {
+  filename         = data.archive_file.get_leaderboard.output_path
+  function_name    = "tandasmx-get-leaderboard"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.get_leaderboard.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 15
+
+  environment {
+    variables = {
+      ENVIRONMENT           = var.environment
+      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
+      SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
+      SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
+      LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
+      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
+      BASE_SCORE            = "20"
+    }
+  }
+
+  tags = { Name = "tandasmx-get-leaderboard", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
+# Lambda: CHECK TANDA ACCESS
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "check_tanda_access" {
+  filename         = data.archive_file.check_tanda_access.output_path
+  function_name    = "tandasmx-check-tanda-access"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.check_tanda_access.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 15
+
+  environment {
+    variables = {
+      ENVIRONMENT           = var.environment
+      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
+      SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
+      SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
+      LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
+      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
+      BASE_SCORE            = "20"
+    }
+  }
+
+  tags = { Name = "tandasmx-check-tanda-access", Environment = var.environment }
+}
+
+resource "aws_cloudwatch_log_group" "lambdas" {
+  for_each = toset([
+    aws_lambda_function.calculate_score.function_name,
+    aws_lambda_function.update_score_event.function_name,
+    aws_lambda_function.get_score.function_name,
+    aws_lambda_function.get_leaderboard.function_name,
+    aws_lambda_function.check_tanda_access.function_name,
+  ])
+  name              = "/aws/lambda/${each.value}"
+  retention_in_days = 14
+  tags              = { Environment = var.environment }
 }

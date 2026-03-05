@@ -341,3 +341,102 @@ resource "aws_lambda_permission" "estadisticas" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
+
+# API-Lambda integrations
+resource "aws_apigatewayv2_integration" "update_score_event" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.update_score_event.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_integration" "get_score" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.get_score.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_integration" "get_leaderboard" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.get_leaderboard.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_integration" "check_tanda_access" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.check_tanda_access.invoke_arn
+  payload_format_version = "2.0"
+}
+
+# Routes
+#POST /score/events
+resource "aws_apigatewayv2_route" "post_score_events" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /score/events"
+  target             = "integrations/${aws_apigatewayv2_integration.update_score_event.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+#GET /score/{userId}
+resource "aws_apigatewayv2_route" "get_score" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /score/{userId}"
+  target             = "integrations/${aws_apigatewayv2_integration.get_score.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+#GET /score/leaderboard
+resource "aws_apigatewayv2_route" "get_leaderboard" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /score/leaderboard"
+  target             = "integrations/${aws_apigatewayv2_integration.get_leaderboard.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+#GET /score/{userId}/access/{tandaId}
+resource "aws_apigatewayv2_route" "check_tanda_access" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /score/{userId}/access/{tandaId}"
+  target             = "integrations/${aws_apigatewayv2_integration.check_tanda_access.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+# Permisos para invocar lambdas desde API Gateway
+resource "aws_lambda_permission" "apigw_update_score_event" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.update_score_event.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "apigw_get_score" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_score.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "apigw_get_leaderboard" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_leaderboard.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "apigw_check_tanda_access" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.check_tanda_access.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}

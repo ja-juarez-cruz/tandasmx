@@ -163,6 +163,107 @@ resource "aws_dynamodb_table" "links_registro" {
 }
 
 
+# ═══════════════════════════════════════════════════════════════
+# Score System Tables
+# ═══════════════════════════════════════════════════════════════
+
+# score_events: cada evento que genera o resta puntos al usuario
+resource "aws_dynamodb_table" "score_events" {
+  name         = "tandasmx-score-events"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+  range_key    = "eventId"
+
+  attribute { 
+    name = "userId"   
+    type = "S"
+  }
+
+  attribute { 
+    name = "eventId"   
+    type = "S"
+  
+  }
+  attribute { 
+    name = "tandaId"  
+    type = "S"
+  }
+  attribute { 
+    name = "createdAt" 
+    type = "S" 
+  }
+
+  global_secondary_index {
+    name            = "tandaId-createdAt-index"
+    hash_key        = "tandaId"
+    range_key       = "createdAt"
+    projection_type = "ALL"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = { Name = "score-events", Environment = var.environment }
+}
+
+# score_snapshots: snapshot diario del score (para gráficas de progreso)
+resource "aws_dynamodb_table" "score_snapshots" {
+  name         = "tandasmx-score-snapshots"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+  range_key    = "snapshotDate"
+
+  attribute { 
+    name = "userId"       
+    type = "S"
+  }
+
+  attribute { 
+    name = "snapshotDate" 
+    type = "S" 
+    }
+
+  tags = { Name = "score-snapshots", Environment = var.environment }
+}
+
+# tanda_access_rules: reglas de acceso configurables por tanda
+resource "aws_dynamodb_table" "tanda_access_rules" {
+  name         = "tandasmx-tanda-access-rules"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "tandaId"
+
+  attribute { 
+    name = "tandaId" 
+    type = "S" 
+  }
+
+  tags = { Name = "tanda-access-rules", Environment = var.environment }
+}
+
+# score_leaderboard: ranking global desnormalizado
+# scoreUserId = "072#usr_123" → sort lexicográfico = mayor score primero
+resource "aws_dynamodb_table" "score_leaderboard" {
+  name         = "tandasmx-score-leaderboard"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "partitionKey"
+  range_key    = "scoreUserId"
+
+  attribute { 
+    name = "partitionKey" 
+    type = "S" 
+  }
+
+  attribute { 
+    name = "scoreUserId"  
+    type = "S"
+  }
+
+  tags = { Name = "score-leaderboard", Environment = var.environment }
+}
+
+
 # =======================
 # DynamoDB: Tabla para tokens de reset
 # =======================
