@@ -68,11 +68,11 @@ def _process_user(ev_table, user_id: str, created_at_str: str, now: datetime) ->
     """Evalúa y registra eventos periódicos para un usuario. Retorna True si se registró algo."""
 
     # Traer historial completo
-    resp   = ev_table.query(KeyConditionExpression=Key("userId").eq(user_id))
+    resp   = ev_table.query(KeyConditionExpression=Key("actorId").eq(user_id))
     events = resp.get("Items", [])
     while "LastEvaluatedKey" in resp:
         resp = ev_table.query(
-            KeyConditionExpression=Key("userId").eq(user_id),
+            KeyConditionExpression=Key("actorId").eq(user_id),
             ExclusiveStartKey=resp["LastEvaluatedKey"],
         )
         events.extend(resp.get("Items", []))
@@ -108,7 +108,7 @@ def _process_user(ev_table, user_id: str, created_at_str: str, now: datetime) ->
 
     for (event_type, points, tanda_id) in new_events:
         ev_table.put_item(Item={
-            "userId":    user_id,
+            "actorId":   user_id,
             "eventId":   str(uuid.uuid4()),
             "eventType": event_type,
             "actorType": "admin",
@@ -123,6 +123,6 @@ def _process_user(ev_table, user_id: str, created_at_str: str, now: datetime) ->
     lambda_cl.invoke(
         FunctionName=CALCULATE_SCORE_ARN,
         InvocationType="Event",
-        Payload=json.dumps({"userId": user_id, "actorType": "admin", "tandaId": "GLOBAL"}),
+        Payload=json.dumps({"actorId": user_id, "actorType": "admin", "tandaId": "GLOBAL"}),
     )
     return True

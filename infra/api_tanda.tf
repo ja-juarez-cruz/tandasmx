@@ -402,7 +402,7 @@ resource "aws_apigatewayv2_route" "get_leaderboard" {
 #GET /score/{userId}/access/{tandaId}
 resource "aws_apigatewayv2_route" "check_tanda_access" {
   api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /score/{userId}/access/{tandaId}"
+  route_key          = "GET /score/{actorId}/access/{tandaId}"
   target             = "integrations/${aws_apigatewayv2_integration.check_tanda_access.id}"
   authorization_type = "CUSTOM"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
@@ -437,6 +437,31 @@ resource "aws_lambda_permission" "apigw_check_tanda_access" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.check_tanda_access.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+# API-Lambda integration
+resource "aws_apigatewayv2_integration" "sync_payment_scores" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.sync_payment_scores.invoke_arn
+  payload_format_version = "2.0"
+}
+
+# POST /score/sync
+resource "aws_apigatewayv2_route" "sync_payment_scores" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /score/sync"
+  target             = "integrations/${aws_apigatewayv2_integration.sync_payment_scores.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_lambda_permission" "apigw_sync_payment_scores" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.sync_payment_scores.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }

@@ -35,11 +35,11 @@ def _meta_key(meta: dict) -> str:
 
 
 def _fetch_all_events(table, subject_id: str) -> list:
-    resp  = table.query(KeyConditionExpression=Key("userId").eq(subject_id))
+    resp  = table.query(KeyConditionExpression=Key("actorId").eq(subject_id))
     items = resp.get("Items", [])
     while "LastEvaluatedKey" in resp:
         resp = table.query(
-            KeyConditionExpression=Key("userId").eq(subject_id),
+            KeyConditionExpression=Key("actorId").eq(subject_id),
             ExclusiveStartKey=resp["LastEvaluatedKey"],
         )
         items.extend(resp.get("Items", []))
@@ -66,14 +66,14 @@ def handler(event, _context):
 def _process_record(table, msg: dict) -> dict:
     event_id         = msg["eventId"]
     actor_type       = msg["actorType"]
-    user_id          = msg["userId"]
+    user_id          = msg.get("adminUserId", msg.get("userId", ""))
     score_subject_id = msg["scoreSubjectId"]
     event_type       = msg["eventType"]
     tanda_id         = msg.get("tandaId", "GLOBAL")
     metadata         = msg.get("metadata", {})
 
     # Idempotency check: fast path — if this specific eventId is already in DynamoDB, skip
-    existing = table.get_item(Key={"userId": score_subject_id, "eventId": event_id})
+    existing = table.get_item(Key={"actorId": score_subject_id, "eventId": event_id})
     if "Item" in existing:
         logger.info(f"Skipping already-processed eventId={event_id}")
         return {"eventId": event_id, "status": "duplicate"}
@@ -83,11 +83,11 @@ def _process_record(table, msg: dict) -> dict:
 
     if event_type == "PAYMENT_CANCEL":
         incoming_meta_key = _meta_key(metadata)
+        # Buscar el pago original (PAYMENT_EARLY o PAYMENT_ON_TIME) con la misma ronda
         original = next(
             (e for e in all_events
              if e.get("eventType") in CANCELABLE_PAYMENTS
-             and _meta_key(e.get("metadata", {})) == incoming_meta_key
-             and not e.get("cancelled", False)),
+             and _meta_key(e.get("metadata", {})) == incoming_meta_key),
             None,
         )
         if not original:
@@ -103,9 +103,12 @@ def _process_record(table, msg: dict) -> dict:
             logger.warning(f"PAYMENT_CANCEL: already cancelled eventId={event_id}")
             return {"eventId": event_id, "status": "already_cancelled"}
 
-        cancel_points = -int(original.get("points", 0))
+        # Descontar exactamente los puntos del tipo original:
+        # PAYMENT_ON_TIME (+1) → -1  |  PAYMENT_EARLY (+2) → -2
+        original_type = original.get("eventType")
+        cancel_points = -POINTS_CONFIG.get(original_type, 0)
         item = {
-            "userId":          score_subject_id,
+            "actorId":         score_subject_id,
             "eventId":         event_id,
             "eventType":       "PAYMENT_CANCEL",
             "actorType":       actor_type,
@@ -143,7 +146,7 @@ def _process_record(table, msg: dict) -> dict:
 
         points = POINTS_CONFIG[event_type]
         item = {
-            "userId":    score_subject_id,
+            "actorId":   score_subject_id,
             "eventId":   event_id,
             "eventType": event_type,
             "actorType": actor_type,
@@ -165,5 +168,5 @@ def _trigger_recalculate(subject_id: str, actor_type: str, tanda_id: str):
     lambda_cl.invoke(
         FunctionName=CALCULATE_SCORE_ARN,
         InvocationType="Event",
-        Payload=json.dumps({"userId": subject_id, "actorType": actor_type, "tandaId": tanda_id}),
+        Payload=json.dumps({"actorId": subject_id, "actorType": actor_type, "tandaId": tanda_id}),
     )

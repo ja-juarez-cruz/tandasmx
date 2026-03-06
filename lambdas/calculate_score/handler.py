@@ -34,23 +34,24 @@ def get_level(score):
             return lv
     return "nuevo"
 
+
 def handler(event, _context):
-    user_id    = event.get("userId")
-    actor_type = event.get("actorType", "admin")   # "admin" | "participante"
+    actor_id   = event.get("actorId")
+    actor_type = event.get("actorType", "admin")
     tanda_id   = event.get("tandaId", "GLOBAL")
 
-    if not user_id:
-        return {"statusCode":400,"body":json.dumps({"error":"userId requerido"})}
+    if not actor_id:
+        return {"statusCode":400,"body":json.dumps({"error":"actorId requerido"})}
 
     ev_table   = dynamodb.Table(SCORE_EVENTS_TABLE)
     lb_table   = dynamodb.Table(LEADERBOARD_TABLE)
     snap_table = dynamodb.Table(SNAPSHOTS_TABLE)
 
-    # 1. Traer todos los eventos del sujeto (admin o participante comparten la tabla por userId)
-    resp   = ev_table.query(KeyConditionExpression=Key("userId").eq(user_id))
+    # 1. Traer todos los eventos del actor
+    resp   = ev_table.query(KeyConditionExpression=Key("actorId").eq(actor_id))
     events = resp.get("Items", [])
     while "LastEvaluatedKey" in resp:
-        resp = ev_table.query(KeyConditionExpression=Key("userId").eq(user_id),
+        resp = ev_table.query(KeyConditionExpression=Key("actorId").eq(actor_id),
                               ExclusiveStartKey=resp["LastEvaluatedKey"])
         events.extend(resp.get("Items", []))
 
@@ -68,9 +69,7 @@ def handler(event, _context):
     level = get_level(score)
     now   = datetime.now(timezone.utc).isoformat()
 
-    # 3. Persistir score de vuelta a la tabla correspondiente
-    # ConditionExpression="attribute_exists(id)" evita que update_item haga
-    # un INSERT si la Key no existe (DynamoDB hace upsert por defecto).
+    # 3. Persistir score en la tabla correspondiente
     score_fields = {
         ":s": Decimal(str(score)),
         ":l": level,
@@ -81,17 +80,17 @@ def handler(event, _context):
     try:
         if actor_type == "participante":
             if tanda_id == "GLOBAL":
-                logger.warning(f"Skipping score update: participante sin tandaId userId={user_id}")
+                logger.warning(f"Skipping score update: participante sin tandaId actorId={actor_id}")
             else:
                 dynamodb.Table(PARTICIPANTES_TABLE).update_item(
-                    Key={"id": tanda_id, "participanteId": user_id},
+                    Key={"id": tanda_id, "participanteId": actor_id},
                     UpdateExpression=update_expr,
                     ExpressionAttributeValues=score_fields,
                     ConditionExpression="attribute_exists(id)",
                 )
         else:
             dynamodb.Table(USUARIOS_TABLE).update_item(
-                Key={"id": user_id},
+                Key={"id": actor_id},
                 UpdateExpression=update_expr,
                 ExpressionAttributeValues=score_fields,
                 ConditionExpression="attribute_exists(id)",
@@ -100,25 +99,47 @@ def handler(event, _context):
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
             logger.warning(
                 f"Score no actualizado: registro no existe "
-                f"actorType={actor_type} userId={user_id} tandaId={tanda_id}"
+                f"actorType={actor_type} actorId={actor_id} tandaId={tanda_id}"
             )
         else:
             raise
 
-    # 4. Leaderboard global (zero-padded para sort lexicográfico)
+    # 4. Obtener datos de contacto para el leaderboard
+    telefono = ""
+    correo   = ""
+    nombre   = ""
+    try:
+        if actor_type == "participante" and tanda_id != "GLOBAL":
+            subject = dynamodb.Table(PARTICIPANTES_TABLE).get_item(
+                Key={"id": tanda_id, "participanteId": actor_id}
+            ).get("Item", {})
+        else:
+            subject = dynamodb.Table(USUARIOS_TABLE).get_item(
+                Key={"id": actor_id}
+            ).get("Item", {})
+        telefono = subject.get("telefono", "")
+        correo   = subject.get("email", "")
+        nombre   = subject.get("nombre", "")
+    except Exception as ex:
+        logger.warning(f"No se pudo obtener datos de contacto actorId={actor_id}: {ex}")
+
+    # 5. Leaderboard global (zero-padded para sort lexicográfico)
     lb_table.put_item(Item={
         "partitionKey": "GLOBAL",
-        "scoreUserId":  f"{str(score).zfill(3)}#{user_id}",
-        "userId":       user_id,
+        "scoreActorId": f"{str(score).zfill(3)}#{actor_id}",
+        "actorId":      actor_id,
         "actorType":    actor_type,
         "scoreGlobal":  Decimal(str(score)),
         "scoreLevel":   level,
+        "telefono":     telefono,
+        "correo":       correo,
+        "nombre":       nombre,
         "updatedAt":    now,
     })
 
-    # 5. Snapshot diario
+    # 6. Snapshot diario
     snap_table.put_item(Item={
-        "userId":       user_id,
+        "actorId":      actor_id,
         "actorType":    actor_type,
         "snapshotDate": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "scoreGlobal":  Decimal(str(score)),
@@ -126,9 +147,9 @@ def handler(event, _context):
         "breakdown":    {k: Decimal(str(v)) for k, v in breakdown.items()},
     })
 
-    logger.info(f"Score OK actorType={actor_type} userId={user_id} score={score} level={level}")
+    logger.info(f"Score OK actorType={actor_type} actorId={actor_id} score={score} level={level}")
     return {"statusCode":200,"body":json.dumps({
-        "userId": user_id, "actorType": actor_type,
+        "actorId": actor_id, "actorType": actor_type,
         "scoreGlobal": score, "scoreLevel": level,
         "breakdown": breakdown, "updatedAt": now,
     })}

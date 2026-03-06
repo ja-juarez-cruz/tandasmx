@@ -47,7 +47,7 @@ def handler(event, _context):
     message = {
         "eventId":        event_id,
         "actorType":      actor_type,
-        "userId":         user_id,
+        "adminUserId":    user_id,
         "participanteId": participante_id,
         "scoreSubjectId": score_subject_id,
         "eventType":      event_type,

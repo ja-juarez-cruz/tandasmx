@@ -49,6 +49,7 @@ resource "aws_cloudwatch_event_rule" "weekly_score_update" {
   name                = "tandasmx-weekly-score-update"
   description         = "Recalcula eventos periódicos de score cada domingo"
   schedule_expression = "cron(0 8 ? * SUN *)"
+  state               = "DISABLED"
 
   tags = { Name = "tandasmx-weekly-score-update", Environment = var.environment }
 }

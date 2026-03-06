@@ -171,26 +171,27 @@ resource "aws_dynamodb_table" "links_registro" {
 resource "aws_dynamodb_table" "score_events" {
   name         = "tandasmx-score-events"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "userId"
+  hash_key     = "actorId"
   range_key    = "eventId"
 
-  attribute { 
-    name = "userId"   
+  attribute {
+    name = "actorId"
     type = "S"
   }
 
-  attribute { 
-    name = "eventId"   
-    type = "S"
-  
-  }
-  attribute { 
-    name = "tandaId"  
+  attribute {
+    name = "eventId"
     type = "S"
   }
-  attribute { 
-    name = "createdAt" 
-    type = "S" 
+
+  attribute {
+    name = "tandaId"
+    type = "S"
+  }
+
+  attribute {
+    name = "createdAt"
+    type = "S"
   }
 
   global_secondary_index {
@@ -212,18 +213,18 @@ resource "aws_dynamodb_table" "score_events" {
 resource "aws_dynamodb_table" "score_snapshots" {
   name         = "tandasmx-score-snapshots"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "userId"
+  hash_key     = "actorId"
   range_key    = "snapshotDate"
 
-  attribute { 
-    name = "userId"       
+  attribute {
+    name = "actorId"
     type = "S"
   }
 
-  attribute { 
-    name = "snapshotDate" 
-    type = "S" 
-    }
+  attribute {
+    name = "snapshotDate"
+    type = "S"
+  }
 
   tags = { Name = "score-snapshots", Environment = var.environment }
 }
@@ -248,15 +249,15 @@ resource "aws_dynamodb_table" "score_leaderboard" {
   name         = "tandasmx-score-leaderboard"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "partitionKey"
-  range_key    = "scoreUserId"
+  range_key    = "scoreActorId"
 
-  attribute { 
-    name = "partitionKey" 
-    type = "S" 
+  attribute {
+    name = "partitionKey"
+    type = "S"
   }
 
-  attribute { 
-    name = "scoreUserId"  
+  attribute {
+    name = "scoreActorId"
     type = "S"
   }
 

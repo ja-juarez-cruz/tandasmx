@@ -35,11 +35,11 @@ def _meta_key(meta: dict) -> str:
 
 def _fetch_all_events(table, subject_id: str) -> list:
     """Obtiene todos los eventos del sujeto, paginando si es necesario."""
-    resp  = table.query(KeyConditionExpression=Key("userId").eq(subject_id))
+    resp  = table.query(KeyConditionExpression=Key("actorId").eq(subject_id))
     items = resp.get("Items", [])
     while "LastEvaluatedKey" in resp:
         resp = table.query(
-            KeyConditionExpression=Key("userId").eq(subject_id),
+            KeyConditionExpression=Key("actorId").eq(subject_id),
             ExclusiveStartKey=resp["LastEvaluatedKey"],
         )
         items.extend(resp.get("Items", []))
@@ -110,7 +110,7 @@ def handler(event, _context):
     points   = POINTS_CONFIG[event_type]
     event_id = str(uuid.uuid4())
     item = {
-        "userId":    score_subject_id,
+        "actorId":   score_subject_id,
         "eventId":   event_id,
         "eventType": event_type,
         "actorType": actor_type,
@@ -129,7 +129,7 @@ def handler(event, _context):
 
     return {"statusCode":201,"body":json.dumps({
         "eventId":   event_id,
-        "userId":    score_subject_id,
+        "actorId":   score_subject_id,
         "actorType": actor_type,
         "eventType": event_type,
         "points":    points,
@@ -141,7 +141,7 @@ def _trigger_recalculate(subject_id: str, actor_type: str, tanda_id: str):
     lambda_cl.invoke(
         FunctionName=CALCULATE_SCORE_ARN,
         InvocationType="Event",
-        Payload=json.dumps({"userId": subject_id, "actorType": actor_type, "tandaId": tanda_id}),
+        Payload=json.dumps({"actorId": subject_id, "actorType": actor_type, "tandaId": tanda_id}),
     )
 
 

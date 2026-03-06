@@ -12,10 +12,10 @@ LEVELS = ["nuevo","confiable","destacado","elite"]
 
 def handler(event, _context):
     params   = event.get("pathParameters") or {}
-    user_id  = params.get("userId")
+    actor_id = params.get("actorId")
     tanda_id = params.get("tandaId")
-    if not user_id or not tanda_id:
-        return err(400, "userId y tandaId son requeridos")
+    if not actor_id or not tanda_id:
+        return err(400, "actorId y tandaId son requeridos")
 
     query_params = event.get("queryStringParameters") or {}
     actor_type   = query_params.get("actorType", "admin")
@@ -25,11 +25,11 @@ def handler(event, _context):
 
     if actor_type == "participante":
         subject = dynamodb.Table(PARTICIPANTES_TABLE).get_item(
-            Key={"id": tanda_id, "participanteId": user_id}
+            Key={"id": tanda_id, "participanteId": actor_id}
         ).get("Item")
     else:
         subject = dynamodb.Table(USUARIOS_TABLE).get_item(
-            Key={"id": user_id}
+            Key={"id": actor_id}
         ).get("Item")
 
     if not subject:
@@ -59,7 +59,7 @@ def handler(event, _context):
         reasons.append("Cuenta restringida por score bajo. Requiere invitación manual del admin.")
 
     return {"statusCode":200,"body":json.dumps({
-        "userId":     user_id,
+        "actorId":    actor_id,
         "actorType":  actor_type,
         "tandaId":    tanda_id,
         "allowed":    allowed,

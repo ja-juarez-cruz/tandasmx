@@ -251,6 +251,12 @@ data "archive_file" "check_tanda_access" {
   output_path = "${path.module}/build/check_tanda_access.zip"
 }
 
+data "archive_file" "sync_payment_scores" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/sync_payment_scores"
+  output_path = "${path.module}/build/sync_payment_scores.zip"
+}
+
 data "archive_file" "webhook_pagos" {
   type        = "zip"
   source_dir  = "${path.module}/../lambdas/webhook_pagos"
@@ -665,6 +671,31 @@ resource "aws_lambda_function" "check_tanda_access" {
 }
 
 # -------------------------------------------------------------------
+# Lambda: SYNC PAYMENT SCORES (retroactive scoring de pagos por tanda)
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "sync_payment_scores" {
+  filename         = data.archive_file.sync_payment_scores.output_path
+  function_name    = "tandasmx-sync-payment-scores"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.sync_payment_scores.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 300  # 5 min: puede iterar sobre muchas tandas
+
+  environment {
+    variables = {
+      TANDAS_TABLE               = aws_dynamodb_table.tandas.name
+      PARTICIPANTES_TABLE        = aws_dynamodb_table.participantes.name
+      PAGOS_TABLE                = aws_dynamodb_table.pagos.name
+      SCORE_EVENTS_TABLE         = aws_dynamodb_table.score_events.name
+      CALCULATE_SCORE_LAMBDA_ARN = aws_lambda_function.calculate_score.arn
+    }
+  }
+
+  tags = { Name = "tandasmx-sync-payment-scores", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
 # Lambda: WEBHOOK PAGOS (recibe eventos de pago y los encola en SQS)
 # -------------------------------------------------------------------
 resource "aws_lambda_function" "webhook_pagos" {
@@ -737,6 +768,7 @@ resource "aws_cloudwatch_log_group" "lambdas" {
     aws_lambda_function.get_score.function_name,
     aws_lambda_function.get_leaderboard.function_name,
     aws_lambda_function.check_tanda_access.function_name,
+    aws_lambda_function.sync_payment_scores.function_name,
     aws_lambda_function.webhook_pagos.function_name,
     aws_lambda_function.process_payment_events.function_name,
     aws_lambda_function.process_periodic_events.function_name,

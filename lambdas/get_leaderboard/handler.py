@@ -30,7 +30,7 @@ def handler(event, _context):
     leaderboard = [
         {
             "rank":        i + 1,
-            "userId":      item["userId"],
+            "actorId":     item["actorId"],
             "actorType":   item.get("actorType", "admin"),
             "scoreGlobal": int(item.get("scoreGlobal", 0)),
             "scoreLevel":  item.get("scoreLevel", "nuevo"),

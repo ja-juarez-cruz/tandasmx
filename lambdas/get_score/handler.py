@@ -47,7 +47,7 @@ def handler(event, _context):
     level = subject.get("scoreLevel", "nuevo")
 
     events_resp = dynamodb.Table(SCORE_EVENTS_TABLE).query(
-        KeyConditionExpression=Key("userId").eq(user_id),
+        KeyConditionExpression=Key("actorId").eq(user_id),
         ScanIndexForward=False,
         Limit=50,
     )
