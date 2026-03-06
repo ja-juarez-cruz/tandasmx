@@ -6,36 +6,42 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.resource("dynamodb")
 
 LEADERBOARD_TABLE = os.environ["LEADERBOARD_TABLE"]
-CORS = {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"}
 
-def handler(event, context):
-    if event.get("httpMethod") == "OPTIONS":
-        return {"statusCode":200,"headers":CORS,"body":""}
-
-    params = event.get("queryStringParameters") or {}
-    limit  = min(int(params.get("limit", 20)), 50)
-    level  = params.get("level")   # filtro opcional: nuevo|confiable|destacado|elite
+def handler(event, _context):
+    params     = event.get("queryStringParameters") or {}
+    limit      = min(int(params.get("limit", 20)), 50)
+    level      = params.get("level")
+    actor_type = params.get("actorType")
 
     resp  = dynamodb.Table(LEADERBOARD_TABLE).query(
         KeyConditionExpression=Key("partitionKey").eq("GLOBAL"),
-        ScanIndexForward=False,  # mayor score primero
-        Limit=limit * 3          # buffer para filtro por nivel
+        ScanIndexForward=False,
+        Limit=limit * 5,
     )
     items = resp.get("Items", [])
+
     if level:
         items = [i for i in items if i.get("scoreLevel") == level]
+    if actor_type:
+        items = [i for i in items if i.get("actorType", "admin") == actor_type]
+
     items = items[:limit]
 
     leaderboard = [
-        {"rank": i+1, "userId": item["userId"],
-         "scoreGlobal": int(item.get("scoreGlobal", 0)),
-         "scoreLevel": item.get("scoreLevel", "nuevo"),
-         "updatedAt": item.get("updatedAt")}
+        {
+            "rank":        i + 1,
+            "userId":      item["userId"],
+            "actorType":   item.get("actorType", "admin"),
+            "scoreGlobal": int(item.get("scoreGlobal", 0)),
+            "scoreLevel":  item.get("scoreLevel", "nuevo"),
+            "updatedAt":   item.get("updatedAt"),
+        }
         for i, item in enumerate(items)
     ]
 
-    return {"statusCode":200,"headers":CORS,"body":json.dumps({
-        "leaderboard": leaderboard,
-        "total": len(leaderboard),
-        "filterLevel": level,
+    return {"statusCode":200,"body":json.dumps({
+        "leaderboard":     leaderboard,
+        "total":           len(leaderboard),
+        "filterLevel":     level,
+        "filterActorType": actor_type,
     })}

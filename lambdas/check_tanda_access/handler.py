@@ -4,30 +4,41 @@ logger   = logging.getLogger()
 logger.setLevel(logging.INFO)
 dynamodb = boto3.resource("dynamodb")
 
-USERS_TABLE        = os.environ["USERS_TABLE"]
-ACCESS_RULES_TABLE = os.environ["ACCESS_RULES_TABLE"]
+USUARIOS_TABLE      = os.environ["USUARIOS_TABLE"]
+PARTICIPANTES_TABLE = os.environ["PARTICIPANTES_TABLE"]
+ACCESS_RULES_TABLE  = os.environ["ACCESS_RULES_TABLE"]
 
-CORS   = {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"}
 LEVELS = ["nuevo","confiable","destacado","elite"]
 
-def handler(event, context):
-    if event.get("httpMethod") == "OPTIONS":
-        return {"statusCode":200,"headers":CORS,"body":""}
-
+def handler(event, _context):
     params   = event.get("pathParameters") or {}
     user_id  = params.get("userId")
     tanda_id = params.get("tandaId")
     if not user_id or not tanda_id:
-        return err(400, "userId y tandaId requeridos")
+        return err(400, "userId y tandaId son requeridos")
 
-    user = dynamodb.Table(USERS_TABLE).get_item(Key={"userId":user_id}).get("Item")
-    if not user:
+    query_params = event.get("queryStringParameters") or {}
+    actor_type   = query_params.get("actorType", "admin")
+
+    if actor_type not in ("admin", "participante"):
+        return err(400, "actorType debe ser 'admin' o 'participante'")
+
+    if actor_type == "participante":
+        subject = dynamodb.Table(PARTICIPANTES_TABLE).get_item(
+            Key={"id": tanda_id, "participanteId": user_id}
+        ).get("Item")
+    else:
+        subject = dynamodb.Table(USUARIOS_TABLE).get_item(
+            Key={"id": user_id}
+        ).get("Item")
+
+    if not subject:
         return err(404, "Usuario no encontrado")
 
-    score = int(user.get("scoreGlobal", 20))
-    level = user.get("scoreLevel", "nuevo")
+    score = int(subject.get("scoreGlobal", 20))
+    level = subject.get("scoreLevel", "nuevo")
 
-    rules     = dynamodb.Table(ACCESS_RULES_TABLE).get_item(Key={"tandaId":tanda_id}).get("Item", {})
+    rules     = dynamodb.Table(ACCESS_RULES_TABLE).get_item(Key={"tandaId": tanda_id}).get("Item", {})
     min_score = int(rules.get("minScore", 40))
     req_level = rules.get("requiredLevel")
 
@@ -36,7 +47,7 @@ def handler(event, context):
 
     if score < min_score:
         allowed = False
-        reasons.append(f"Score insuficiente: tienes {score}, minimo requerido {min_score}")
+        reasons.append(f"Score insuficiente: tienes {score}, mínimo requerido {min_score}")
 
     if req_level and req_level in LEVELS:
         if LEVELS.index(level if level in LEVELS else "nuevo") < LEVELS.index(req_level):
@@ -45,14 +56,18 @@ def handler(event, context):
 
     if score < 25:
         allowed = False
-        reasons.append("Cuenta restringida por score bajo. Requiere invitacion manual del admin.")
+        reasons.append("Cuenta restringida por score bajo. Requiere invitación manual del admin.")
 
-    return {"statusCode":200,"headers":CORS,"body":json.dumps({
-        "userId":user_id,"tandaId":tanda_id,
-        "allowed":allowed,"reasons":reasons,
-        "userScore":score,"userLevel":level,
-        "tandaRules":{"minScore":min_score,"requiredLevel":req_level},
+    return {"statusCode":200,"body":json.dumps({
+        "userId":     user_id,
+        "actorType":  actor_type,
+        "tandaId":    tanda_id,
+        "allowed":    allowed,
+        "reasons":    reasons,
+        "userScore":  score,
+        "userLevel":  level,
+        "tandaRules": {"minScore": min_score, "requiredLevel": req_level},
     })}
 
 def err(s, m):
-    return {"statusCode":s,"headers":CORS,"body":json.dumps({"error":m})}
+    return {"statusCode":s,"body":json.dumps({"error":m})}

@@ -440,3 +440,28 @@ resource "aws_lambda_permission" "apigw_check_tanda_access" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
+
+# API-Lambda integration
+resource "aws_apigatewayv2_integration" "webhook_pagos" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.webhook_pagos.invoke_arn
+  payload_format_version = "2.0"
+}
+
+# POST /webhooks/pagos
+resource "aws_apigatewayv2_route" "webhook_pagos" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /webhooks/pagos"
+  target             = "integrations/${aws_apigatewayv2_integration.webhook_pagos.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_lambda_permission" "apigw_webhook_pagos" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.webhook_pagos.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}

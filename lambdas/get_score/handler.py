@@ -5,53 +5,78 @@ logger   = logging.getLogger()
 logger.setLevel(logging.INFO)
 dynamodb = boto3.resource("dynamodb")
 
-USERS_TABLE        = os.environ["USERS_TABLE"]
-SCORE_EVENTS_TABLE = os.environ["SCORE_EVENTS_TABLE"]
+USUARIOS_TABLE      = os.environ["USUARIOS_TABLE"]
+PARTICIPANTES_TABLE = os.environ["PARTICIPANTES_TABLE"]
+SCORE_EVENTS_TABLE  = os.environ["SCORE_EVENTS_TABLE"]
 
-CORS = {"Content-Type":"application/json","Access-Control-Allow-Origin":"*"}
 LEVELS = ["nuevo","confiable","destacado","elite"]
 LEVEL_META = {
-    "nuevo":     {"label":"Nuevo",     "emoji":"bronze",  "minScore":0,  "maxScore":30},
-    "confiable": {"label":"Confiable", "emoji":"silver",  "minScore":31, "maxScore":60},
-    "destacado": {"label":"Destacado", "emoji":"gold",    "minScore":61, "maxScore":80},
-    "elite":     {"label":"Elite",     "emoji":"diamond", "minScore":81, "maxScore":100},
+    "nuevo":     {"label":"Nuevo",     "badge":"bronze",  "minScore":0,  "maxScore":30},
+    "confiable": {"label":"Confiable", "badge":"silver",  "minScore":31, "maxScore":60},
+    "destacado": {"label":"Destacado", "badge":"gold",    "minScore":61, "maxScore":80},
+    "elite":     {"label":"Elite",     "badge":"diamond", "minScore":81, "maxScore":100},
 }
 
-def handler(event, context):
-    if event.get("httpMethod") == "OPTIONS":
-        return {"statusCode":200,"headers":CORS,"body":""}
-
+def handler(event, _context):
     user_id = (event.get("pathParameters") or {}).get("userId")
     if not user_id:
         return err(400, "userId requerido")
 
-    user = dynamodb.Table(USERS_TABLE).get_item(Key={"userId":user_id}).get("Item")
-    if not user:
+    params     = event.get("queryStringParameters") or {}
+    actor_type = params.get("actorType", "admin")
+    tanda_id   = params.get("tandaId")
+
+    if actor_type not in ("admin", "participante"):
+        return err(400, "actorType debe ser 'admin' o 'participante'")
+    if actor_type == "participante" and not tanda_id:
+        return err(400, "tandaId requerido cuando actorType es 'participante'")
+
+    if actor_type == "participante":
+        subject = dynamodb.Table(PARTICIPANTES_TABLE).get_item(
+            Key={"id": tanda_id, "participanteId": user_id}
+        ).get("Item")
+    else:
+        subject = dynamodb.Table(USUARIOS_TABLE).get_item(
+            Key={"id": user_id}
+        ).get("Item")
+
+    if not subject:
         return err(404, "Usuario no encontrado")
 
-    score = int(user.get("scoreGlobal", 20))
-    level = user.get("scoreLevel", "nuevo")
+    score = int(subject.get("scoreGlobal", 20))
+    level = subject.get("scoreLevel", "nuevo")
 
     events_resp = dynamodb.Table(SCORE_EVENTS_TABLE).query(
         KeyConditionExpression=Key("userId").eq(user_id),
-        ScanIndexForward=False, Limit=50
+        ScanIndexForward=False,
+        Limit=50,
     )
     recent = [
-        {"eventId":e["eventId"],"eventType":e["eventType"],"points":int(e.get("points",0)),
-         "tandaId":e.get("tandaId"),"createdAt":e.get("createdAt")}
+        {
+            "eventId":   e["eventId"],
+            "eventType": e["eventType"],
+            "actorType": e.get("actorType", "admin"),
+            "points":    int(e.get("points", 0)),
+            "tandaId":   e.get("tandaId"),
+            "createdAt": e.get("createdAt"),
+        }
         for e in events_resp.get("Items", [])
     ]
 
-    # Proximo nivel
     next_level = None
     idx = LEVELS.index(level) if level in LEVELS else 0
-    if idx < len(LEVELS)-1:
-        nxt = LEVELS[idx+1]
-        next_level = {**LEVEL_META[nxt], "level":nxt,
-                      "pointsLeft": max(0, LEVEL_META[nxt]["minScore"] - score)}
+    if idx < len(LEVELS) - 1:
+        nxt = LEVELS[idx + 1]
+        next_level = {
+            **LEVEL_META[nxt],
+            "level":      nxt,
+            "pointsLeft": max(0, LEVEL_META[nxt]["minScore"] - score),
+        }
 
-    return {"statusCode":200,"headers":CORS,"body":json.dumps({
-        "userId": user_id,
+    return {"statusCode":200,"body":json.dumps({
+        "userId":      user_id,
+        "actorType":   actor_type,
+        "nombre":      subject.get("nombre", ""),
         "scoreGlobal": score,
         "scoreLevel":  level,
         "levelInfo":   LEVEL_META.get(level, LEVEL_META["nuevo"]),
@@ -64,8 +89,8 @@ def handler(event, context):
             "canJoinLargeTanda":    score >= 61,
         },
         "recentEvents": recent,
-        "updatedAt": user.get("scoreUpdatedAt"),
+        "updatedAt":   subject.get("scoreUpdatedAt"),
     })}
 
 def err(s, m):
-    return {"statusCode":s,"headers":CORS,"body":json.dumps({"error":m})}
+    return {"statusCode":s,"body":json.dumps({"error":m})}

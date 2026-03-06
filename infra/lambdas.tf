@@ -101,6 +101,23 @@ resource "aws_iam_role_policy_attachment" "lambda_dynamodb_access" {
   policy_arn = aws_iam_policy.dynamodb_rw_policy.arn
 }
 
+# -------------------------------------------------------------------
+# Permiso para que update_score_event invoque calculate_score
+# -------------------------------------------------------------------
+resource "aws_iam_role_policy" "invoke_calculate_score" {
+  name = "invoke-calculate-score"
+  role = aws_iam_role.lambda_exec_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["lambda:InvokeFunction"]
+      Resource = aws_lambda_function.calculate_score.arn
+    }]
+  })
+}
+
 
 # -------------------------------------------------------------------
 # Layer: AUTH
@@ -232,6 +249,24 @@ data "archive_file" "check_tanda_access" {
   type        = "zip"
   source_dir  = "${path.module}/../lambdas/check_tanda_access"
   output_path = "${path.module}/build/check_tanda_access.zip"
+}
+
+data "archive_file" "webhook_pagos" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/webhook_pagos"
+  output_path = "${path.module}/build/webhook_pagos.zip"
+}
+
+data "archive_file" "process_payment_events" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/process_payment_events"
+  output_path = "${path.module}/build/process_payment_events.zip"
+}
+
+data "archive_file" "process_periodic_events" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/process_periodic_events"
+  output_path = "${path.module}/build/process_periodic_events.zip"
 }
 
 # -------------------------------------------------------------------
@@ -528,12 +563,11 @@ resource "aws_lambda_function" "calculate_score" {
 
   environment {
     variables = {
-      ENVIRONMENT           = var.environment
-      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
+      USUARIOS_TABLE        = aws_dynamodb_table.usuarios_admin.name
+      PARTICIPANTES_TABLE   = aws_dynamodb_table.participantes.name
       SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
       SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
       LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
-      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
       BASE_SCORE            = "20"
     }
   }
@@ -555,13 +589,7 @@ resource "aws_lambda_function" "update_score_event" {
 
   environment {
     variables = {
-      ENVIRONMENT                = var.environment
-      USERS_TABLE                = aws_dynamodb_table.usuarios_admin.name
       SCORE_EVENTS_TABLE         = aws_dynamodb_table.score_events.name
-      SCORE_SNAPSHOTS_TABLE      = aws_dynamodb_table.score_snapshots.name
-      LEADERBOARD_TABLE          = aws_dynamodb_table.score_leaderboard.name
-      ACCESS_RULES_TABLE         = aws_dynamodb_table.tanda_access_rules.name
-      BASE_SCORE                 = "20"
       CALCULATE_SCORE_LAMBDA_ARN = aws_lambda_function.calculate_score.arn
     }
   }
@@ -583,13 +611,9 @@ resource "aws_lambda_function" "get_score" {
 
   environment {
     variables = {
-      ENVIRONMENT           = var.environment
-      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
+      USUARIOS_TABLE        = aws_dynamodb_table.usuarios_admin.name
+      PARTICIPANTES_TABLE   = aws_dynamodb_table.participantes.name
       SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
-      SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
-      LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
-      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
-      BASE_SCORE            = "20"
     }
   }
 
@@ -610,13 +634,7 @@ resource "aws_lambda_function" "get_leaderboard" {
 
   environment {
     variables = {
-      ENVIRONMENT           = var.environment
-      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
-      SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
-      SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
-      LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
-      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
-      BASE_SCORE            = "20"
+      LEADERBOARD_TABLE = aws_dynamodb_table.score_leaderboard.name
     }
   }
 
@@ -637,17 +655,79 @@ resource "aws_lambda_function" "check_tanda_access" {
 
   environment {
     variables = {
-      ENVIRONMENT           = var.environment
-      USERS_TABLE           = aws_dynamodb_table.usuarios_admin.name
-      SCORE_EVENTS_TABLE    = aws_dynamodb_table.score_events.name
-      SCORE_SNAPSHOTS_TABLE = aws_dynamodb_table.score_snapshots.name
-      LEADERBOARD_TABLE     = aws_dynamodb_table.score_leaderboard.name
-      ACCESS_RULES_TABLE    = aws_dynamodb_table.tanda_access_rules.name
-      BASE_SCORE            = "20"
+      USUARIOS_TABLE      = aws_dynamodb_table.usuarios_admin.name
+      PARTICIPANTES_TABLE = aws_dynamodb_table.participantes.name
+      ACCESS_RULES_TABLE  = aws_dynamodb_table.tanda_access_rules.name
     }
   }
 
   tags = { Name = "tandasmx-check-tanda-access", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
+# Lambda: WEBHOOK PAGOS (recibe eventos de pago y los encola en SQS)
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "webhook_pagos" {
+  filename         = data.archive_file.webhook_pagos.output_path
+  function_name    = "tandasmx-webhook-pagos"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.webhook_pagos.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 15
+
+  environment {
+    variables = {
+      PAYMENT_EVENTS_QUEUE_URL = aws_sqs_queue.payment_events.url
+    }
+  }
+
+  tags = { Name = "tandasmx-webhook-pagos", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
+# Lambda: PROCESS PAYMENT EVENTS (consumidor SQS, idempotente)
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "process_payment_events" {
+  filename         = data.archive_file.process_payment_events.output_path
+  function_name    = "tandasmx-process-payment-events"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.process_payment_events.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 60
+
+  environment {
+    variables = {
+      SCORE_EVENTS_TABLE         = aws_dynamodb_table.score_events.name
+      CALCULATE_SCORE_LAMBDA_ARN = aws_lambda_function.calculate_score.arn
+    }
+  }
+
+  tags = { Name = "tandasmx-process-payment-events", Environment = var.environment }
+}
+
+# -------------------------------------------------------------------
+# Lambda: PROCESS PERIODIC EVENTS (EventBridge domingos)
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "process_periodic_events" {
+  filename         = data.archive_file.process_periodic_events.output_path
+  function_name    = "tandasmx-process-periodic-events"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.process_periodic_events.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 300  # 5 min: itera sobre todos los usuarios
+
+  environment {
+    variables = {
+      USUARIOS_TABLE             = aws_dynamodb_table.usuarios_admin.name
+      SCORE_EVENTS_TABLE         = aws_dynamodb_table.score_events.name
+      CALCULATE_SCORE_LAMBDA_ARN = aws_lambda_function.calculate_score.arn
+    }
+  }
+
+  tags = { Name = "tandasmx-process-periodic-events", Environment = var.environment }
 }
 
 resource "aws_cloudwatch_log_group" "lambdas" {
@@ -657,6 +737,9 @@ resource "aws_cloudwatch_log_group" "lambdas" {
     aws_lambda_function.get_score.function_name,
     aws_lambda_function.get_leaderboard.function_name,
     aws_lambda_function.check_tanda_access.function_name,
+    aws_lambda_function.webhook_pagos.function_name,
+    aws_lambda_function.process_payment_events.function_name,
+    aws_lambda_function.process_periodic_events.function_name,
   ])
   name              = "/aws/lambda/${each.value}"
   retention_in_days = 14

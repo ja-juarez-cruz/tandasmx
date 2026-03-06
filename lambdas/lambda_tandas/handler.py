@@ -521,65 +521,77 @@ def listar(event, context):
                     'message': 'Token inválido'
                 }
             })
-        
+
         # 1️⃣ Obtener tandas del admin
         result = tandas_table.query(
             IndexName='adminId-index',
             KeyConditionExpression='adminId = :adminId',
             ExpressionAttributeValues={':adminId': user_id}
         )
-        
+
         tandas_items = result.get('Items', [])
         tandas_response = []
-        
+
         # 2️⃣ Para cada tanda, obtener participantes
         for tanda in tandas_items:
-            tanda_id = tanda['id']
-            
-            participantes_result = participantes_table.query(
-                KeyConditionExpression='id = :tandaId',
-                ExpressionAttributeValues={':tandaId': tanda_id}
-            )
-            
-            participantes = []
-            for p in participantes_result.get('Items', []):
-                participantes.append({
-                    'participanteId': p['participanteId'],
-                    'nombre': p['nombre'],
-                    'telefono': p.get('telefono'),
-                    'email': p.get('email'),
-                    'numeroAsignado': p['numeroAsignado'],
-                    'fechaCumpleaños': p.get('fechaCumpleaños',''),
-                    'fechaRegistro': p.get('fechaRegistro','')
-                })
-            
-            tandas_response.append({
-                'tandaId': tanda_id,
-                'nombre': tanda['nombre'],
-                'montoPorRonda': tanda['montoPorRonda'],
-                'totalRondas': tanda['totalRondas'],
-                'rondaActual': tanda['rondaActual'],
-                'fechaInicio': tanda['fechaInicio'],
-                #'fechaLimitePago': tanda.get('fechaLimitePago',None),
-                'frecuencia': tanda.get('frecuencia',None),
-                'diasRecordatorio': tanda.get('diasRecordatorio',None),
-                'metodoPago': tanda.get('metodoPago',None),
-                'status': tanda['status'],
-                'participantes': sorted(
-                    participantes,
-                    key=lambda x: x['numeroAsignado']
+            tanda_id = tanda.get('id')
+            if not tanda_id:
+                print(f"⚠️ Tanda sin 'id', saltando: {tanda}")
+                continue
+
+            try:
+                participantes_result = participantes_table.query(
+                    KeyConditionExpression='id = :tandaId',
+                    ExpressionAttributeValues={':tandaId': tanda_id}
                 )
-            })
-        
+
+                participantes = []
+                for p in participantes_result.get('Items', []):
+                    num_asignado = p.get('numeroAsignado', 0)
+                    participantes.append({
+                        'participanteId': p.get('participanteId', ''),
+                        'nombre': p.get('nombre', ''),
+                        'telefono': p.get('telefono'),
+                        'email': p.get('email'),
+                        'numeroAsignado': num_asignado,
+                        'fechaCumpleaños': p.get('fechaCumpleaños', ''),
+                        'fechaRegistro': p.get('fechaRegistro', '')
+                    })
+
+                tandas_response.append({
+                    'tandaId': tanda_id,
+                    'nombre': tanda.get('nombre', ''),
+                    'montoPorRonda': tanda.get('montoPorRonda', 0),
+                    'totalRondas': tanda.get('totalRondas', 0),
+                    'rondaActual': tanda.get('rondaActual', 1),
+                    'fechaInicio': tanda.get('fechaInicio', ''),
+                    'frecuencia': tanda.get('frecuencia'),
+                    'diasRecordatorio': tanda.get('diasRecordatorio'),
+                    'metodoPago': tanda.get('metodoPago'),
+                    'status': tanda.get('status', 'activa'),
+                    'participantes': sorted(
+                        participantes,
+                        key=lambda x: x['numeroAsignado']
+                    )
+                })
+            except Exception as tanda_err:
+                import traceback
+                print(f"❌ Error procesando tanda {tanda_id}: {str(tanda_err)}")
+                print(traceback.format_exc())
+                # Continúa con las demás tandas en lugar de romper todo
+                continue
+
         return response(200, {
             'success': True,
             'data': {
                 'tandas': tandas_response
             }
         })
-        
+
     except Exception as e:
-        print(f"Error en listar tandas: {str(e)}")
+        import traceback
+        print(f"❌ Error en listar tandas: {str(e)}")
+        print(traceback.format_exc())
         return response(500, {
             'success': False,
             'error': {
