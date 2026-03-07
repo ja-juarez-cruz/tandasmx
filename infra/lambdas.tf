@@ -275,6 +275,12 @@ data "archive_file" "process_periodic_events" {
   output_path = "${path.module}/build/process_periodic_events.zip"
 }
 
+data "archive_file" "get_tanda_scores" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambdas/get_tanda_scores"
+  output_path = "${path.module}/build/get_tanda_scores.zip"
+}
+
 # -------------------------------------------------------------------
 # Lambda: AUTENTICACIÓN
 # -------------------------------------------------------------------
@@ -761,6 +767,27 @@ resource "aws_lambda_function" "process_periodic_events" {
   tags = { Name = "tandasmx-process-periodic-events", Environment = var.environment }
 }
 
+# -------------------------------------------------------------------
+# Lambda: GET TANDA SCORES (scores de todos los participantes de una tanda)
+# -------------------------------------------------------------------
+resource "aws_lambda_function" "get_tanda_scores" {
+  filename         = data.archive_file.get_tanda_scores.output_path
+  function_name    = "tandasmx-get-tanda-scores"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "handler.handler"
+  source_code_hash = data.archive_file.get_tanda_scores.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 15
+
+  environment {
+    variables = {
+      PARTICIPANTES_TABLE = aws_dynamodb_table.participantes.name
+    }
+  }
+
+  tags = { Name = "tandasmx-get-tanda-scores", Environment = var.environment }
+}
+
 resource "aws_cloudwatch_log_group" "lambdas" {
   for_each = toset([
     aws_lambda_function.calculate_score.function_name,
@@ -772,6 +799,7 @@ resource "aws_cloudwatch_log_group" "lambdas" {
     aws_lambda_function.webhook_pagos.function_name,
     aws_lambda_function.process_payment_events.function_name,
     aws_lambda_function.process_periodic_events.function_name,
+    aws_lambda_function.get_tanda_scores.function_name,
   ])
   name              = "/aws/lambda/${each.value}"
   retention_in_days = 14

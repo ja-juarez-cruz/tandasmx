@@ -316,7 +316,8 @@ def crear(event, context):
             'updatedAt': timestamp,
             'frecuencia': body['frecuencia'],
             'diasRecordatorio': body['diasRecordatorio'],
-            'metodoPago': body['metodoPago']
+            'metodoPago': body['metodoPago'],
+            'diasLimitePago': int(body['diasLimitePago']) if body.get('diasLimitePago') else 5,
         }
         print(f'tanda a crear: {tanda}')
         
@@ -483,7 +484,11 @@ def actualizar(event, context):
         if 'configuracion' in body:
             update_expression += ", configuracion = :config"
             expression_values[':config'] = body['configuracion']
-        
+
+        if 'diasLimitePago' in body:
+            update_expression += ", diasLimitePago = :diasLimitePago"
+            expression_values[':diasLimitePago'] = int(body['diasLimitePago']) if body['diasLimitePago'] else 5
+
         # Actualizar
         tandas_table.update_item(
             Key={'id': tanda_id},
@@ -568,6 +573,7 @@ def listar(event, context):
                     'frecuencia': tanda.get('frecuencia'),
                     'diasRecordatorio': tanda.get('diasRecordatorio'),
                     'metodoPago': tanda.get('metodoPago'),
+                    'diasLimitePago': int(tanda.get('diasLimitePago', 5)),
                     'status': tanda.get('status', 'activa'),
                     'participantes': sorted(
                         participantes,

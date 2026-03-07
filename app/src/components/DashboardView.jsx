@@ -44,6 +44,26 @@ export default function DashboardView({ tandaData, estadisticas, onCrearTanda })
   // Estado del cumpleaños de rondaActual: 'actual' (≤3 días), 'reciente' (>3 días pasados)
   const estadoCumpleRondaActual = calcularEstadoCumpleRondaActual(tandaData, rondaActual);
 
+  // Participantes con cumpleaños dentro de ±DIAS_VENTANA_CUMPLE días (no depende de rondaActual)
+  const cumpleañerosVigentes = (() => {
+    if (!esCumpleañera) return [];
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    return (tandaData.participantes || [])
+      .filter(p => {
+        if (!p.fechaCumpleaños) return false;
+        const base = new Date(p.fechaCumpleaños + 'T00:00:00');
+        const cumpleAno = new Date(hoy.getFullYear(), base.getMonth(), base.getDate());
+        return Math.abs(Math.round((hoy - cumpleAno) / 86400000)) <= DIAS_VENTANA_CUMPLE;
+      })
+      .map(p => {
+        const base = new Date(p.fechaCumpleaños + 'T00:00:00');
+        const cumpleAno = new Date(hoy.getFullYear(), base.getMonth(), base.getDate());
+        return { ...p, diasDesde: Math.round((hoy - cumpleAno) / 86400000) };
+      })
+      .sort((a, b) => Math.abs(a.diasDesde) - Math.abs(b.diasDesde));
+  })();
+  const esVigente = cumpleañerosVigentes.length > 0;
+
   const copyPublicLink = () => {
     if (!tandaData) return;
     
@@ -441,7 +461,7 @@ ${publicUrl}`;
                 <span className="text-xs md:text-sm font-bold">
                   {esCumpleañera
                     ? (tandaIniciada
-                        ? (estadoCumpleRondaActual?.estado === 'reciente' ? 'Cumpleaños Reciente' : 'Próximo Cumpleaños')
+                        ? (estadoCumpleRondaActual?.estado === 'actual' ? 'Cumpleaños Vigente' : 'Próximo Cumpleaños')
                         : getTextoCumpleanos(proximoCumpleInfo?.ronda))
                     : (tandaIniciada ? 'Ronda Actual' : 'Primera Ronda')}
                 </span>
@@ -454,91 +474,35 @@ ${publicUrl}`;
 
           {/* Contenido */}
           <div className="p-4 md:p-6">
-            {esCumpleañera && estadoCumpleRondaActual?.estado === 'reciente' ? (
-              /* Vista Reciente: muestra cumpleaños pasado + próximo */
-              <div className="space-y-4">
-                {/* Cumpleaños Recientes */}
-                {cumpleañosRecientes.length > 0 && (
-                  <div>
-                    <p className="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                      Cumpleaños Reciente{cumpleañosRecientes.length > 1 ? 's' : ''}
-                    </p>
-                    {cumpleañosRecientes.map(p => (
-                      <div key={p.participanteId} className="flex items-center gap-2 md:gap-3 p-2.5 bg-amber-50 rounded-xl border-2 border-amber-200 mb-2 last:mb-0">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                          {p.numeroAsignado}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-xs md:text-sm text-amber-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
-                          <div className="text-[10px] md:text-xs text-amber-700">
-                            🎂 {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
-                            {' · '}hace {p.diasDesde} día{p.diasDesde !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* Cumpleaños Próximos */}
-                {cumpleañosProximos.length > 0 && (
-                  <div>
-                    <p className="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                      Próximo{cumpleañosProximos.length > 1 ? 's' : ''} Cumpleaños
-                    </p>
-                    {cumpleañosProximos.map(p => (
-                      <div key={p.participanteId} className="flex items-center gap-2 md:gap-3 p-2.5 bg-purple-50 rounded-xl border-2 border-purple-200 mb-2 last:mb-0">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                          {p.numeroAsignado}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-xs md:text-sm text-purple-700 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
-                          <div className="text-[10px] md:text-xs text-purple-700">
-                            🎁 {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
-                            {' · '}dentro de {proximoCumpleInfo?.dias} día{proximoCumpleInfo?.dias !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* Monto a recibir */}
-                <div className="flex items-center gap-2 md:gap-3 p-2.5 bg-green-50 rounded-xl border-2 border-green-200">
-                  <DollarSign className="w-4 h-4 md:w-5 md:h-5 text-green-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] md:text-xs font-semibold text-green-800">Recibirá de Regalo</div>
-                    <div className="text-lg md:text-xl font-black text-green-900">
-                      ${(((tandaData.participantes?.length || 0) - 1) * (tandaData.montoPorRonda || 0)).toLocaleString()}
-                    </div>
-                    <div className="text-[10px] md:text-xs text-green-700">
-                      {(tandaData.participantes?.length || 0) - 1} participantes × ${(tandaData.montoPorRonda || 0).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : proximoNumero ? (
+            {proximoNumero ? (
               <>
-                {/* Mostrar TODOS los cumpleañeros si hay múltiples activos */}
-                {esCumpleañera && statsRondaActual.cumpleañerosHoy && statsRondaActual.cumpleañerosHoy.length > 1 ? (
+                {/* Número de ronda vigente */}
+                {esCumpleañera && cumpleañerosVigentes.length > 1 ? (
                   <>
-                    {/* Múltiples cumpleañeros */}
-                    <div className="text-center mb-4">
-                      <h4 className="text-sm md:text-base font-bold text-pink-600 mb-3">
-                        ¡{statsRondaActual.cumpleañerosHoy.length} Cumpleañeros! 🎉
-                      </h4>
+                    {/* Múltiples cumpleañeros vigentes — grid centrado */}
+                    <div className="mb-4">
+                      <p className="text-xs md:text-sm font-bold text-pink-600 text-center mb-3">
+                        🎉 ¡{cumpleañerosVigentes.length} Cumpleañeros!
+                      </p>
                       <div className="grid grid-cols-2 gap-2 mb-3">
-                        {statsRondaActual.cumpleañerosHoy.map((cumpleañero) => (
-                          <div key={cumpleañero.participanteId} className="p-2 bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl border-2 border-pink-200">
-                            <div className="inline-flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 text-white shadow-lg mb-2">
-                              <span className="text-xl md:text-2xl font-black">{cumpleañero.numeroAsignado}</span>
+                        {cumpleañerosVigentes.map((cumpleañero) => (
+                          <div key={cumpleañero.participanteId} className="flex flex-col items-center p-3 bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl border-2 border-pink-200 gap-1.5">
+                            <div className="inline-flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 text-white shadow-md shadow-pink-200">
+                              <span className="text-2xl md:text-3xl font-black">{cumpleañero.numeroAsignado}</span>
                             </div>
-                            <div className="text-xs md:text-sm font-bold text-gray-800 truncate">{cumpleañero.nombre}</div>
-                            <div className="text-[10px] md:text-xs text-gray-500 truncate">{cumpleañero.telefono}</div>
+                            <div className="text-xs font-bold text-gray-800 text-center truncate w-full">{cumpleañero.nombre.split(' ')[0]}</div>
+                            <div className="text-[10px] text-pink-600 text-center">
+                              {new Date(cumpleañero.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cumpleañero.diasDesde === 0 ? 'bg-pink-500 text-white' : cumpleañero.diasDesde < 0 ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {cumpleañero.diasDesde === 0 ? '¡Hoy!' : cumpleañero.diasDesde < 0 ? `${-cumpleañero.diasDesde}d` : `Hace ${cumpleañero.diasDesde}d`}
+                            </span>
                           </div>
                         ))}
                       </div>
                       <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-2 md:p-3">
                         <p className="text-[10px] md:text-xs text-yellow-800">
-                          💰 <strong>Cada cumpleañero recibirá ${statsRondaActual.montoRealARecibirPorCumpleañero?.toLocaleString()}</strong>
+                          💰 <strong>Cada cumpleañero recibirá ${(((tandaData.participantes?.length || 0) - 1) * (tandaData.montoPorRonda || 0)).toLocaleString()}</strong>
                         </p>
                         <p className="text-[9px] md:text-[10px] text-yellow-700 mt-1">
                           Todos dan regalo (incluso entre cumpleañeros)
@@ -550,11 +514,41 @@ ${publicUrl}`;
                   <>
                     {/* Un solo número de ronda */}
                     <div className="text-center mb-4">
-                      <div className={`inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${esCumpleañera ? 'from-pink-500 to-purple-600' : 'from-green-500 to-emerald-600'} text-white shadow-lg mb-3`}>
-                        <span className="text-3xl md:text-4xl font-black">{proximoNumero.numeroAsignado}</span>
-                      </div>
-                      <div className="text-lg md:text-xl font-bold text-gray-800 truncate">{proximoNumero.nombre}</div>
-                      <div className="text-xs md:text-sm text-gray-500 truncate">{proximoNumero.telefono}</div>
+                      {esCumpleañera ? (
+                        esVigente && (() => {
+                          const vigente = cumpleañerosVigentes[0];
+                          return (
+                            <>
+                              <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 text-white shadow-lg shadow-pink-300/50 mb-3">
+                                <span className="text-3xl md:text-4xl font-black">{vigente.numeroAsignado}</span>
+                              </div>
+                              <div className="text-lg md:text-xl font-bold text-gray-800 truncate">
+                                {vigente.nombre.split(' ').slice(0, 2).join(' ')}
+                              </div>
+                              <div className="text-xs md:text-sm text-pink-600 font-medium mt-1">
+                                🎂 {new Date(vigente.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                              </div>
+                              <span className={`inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full ${
+                                vigente.diasDesde === 0 ? 'bg-pink-500 text-white' :
+                                vigente.diasDesde < 0 ? 'bg-purple-100 text-purple-700' :
+                                'bg-amber-100 text-amber-700'
+                              }`}>
+                                {vigente.diasDesde === 0 ? '🎉 ¡Hoy es su cumpleaños!' :
+                                 vigente.diasDesde < 0 ? `Faltan ${-vigente.diasDesde} día${-vigente.diasDesde !== 1 ? 's' : ''}` :
+                                 `Hace ${vigente.diasDesde} día${vigente.diasDesde !== 1 ? 's' : ''}`}
+                              </span>
+                            </>
+                          );
+                        })()
+                      ) : (
+                        <>
+                          <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg mb-3">
+                            <span className="text-3xl md:text-4xl font-black">{proximoNumero.numeroAsignado}</span>
+                          </div>
+                          <div className="text-lg md:text-xl font-bold text-gray-800 truncate">{proximoNumero.nombre}</div>
+                          <div className="text-xs md:text-sm text-gray-500 truncate">{proximoNumero.telefono}</div>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
@@ -861,11 +855,13 @@ ${publicUrl}`;
                                   ← ¡Cumpleaños! 🎂
                                 </span>
                               )}
+                               {/*
                               {esCumpleReciente && (
+                               
                                 <span className="ml-1 md:ml-2 text-[10px] md:text-xs text-amber-600">
                                   ← Cumple Reciente 🎂
                                 </span>
-                              )}
+                              )}*/}
                               {esProximoCumpleAnero && (
                                 <span className="ml-1 md:ml-2 text-[10px] md:text-xs text-purple-600">
                                   ← Próximo Cumpleaños 🎁

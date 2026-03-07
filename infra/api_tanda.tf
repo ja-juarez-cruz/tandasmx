@@ -490,3 +490,28 @@ resource "aws_lambda_permission" "apigw_webhook_pagos" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
+
+# API-Lambda integration
+resource "aws_apigatewayv2_integration" "get_tanda_scores" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.get_tanda_scores.invoke_arn
+  payload_format_version = "2.0"
+}
+
+# GET /tandas/{tandaId}/scores
+resource "aws_apigatewayv2_route" "get_tanda_scores" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /tandas/{tandaId}/scores"
+  target             = "integrations/${aws_apigatewayv2_integration.get_tanda_scores.id}"
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+}
+
+resource "aws_lambda_permission" "apigw_get_tanda_scores" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_tanda_scores.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}

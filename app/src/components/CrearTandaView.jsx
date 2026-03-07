@@ -9,13 +9,14 @@ import {
 import { apiFetch } from '../utils/apiFetch';
 
 // ==================== COMPONENTE CALENDARIO RONDAS ====================
-function CalendarioRondas({ fechasEjemplo, totalRondas, nombreTanda, montoPorRonda, frecuencia }) {
+function CalendarioRondas({ fechasEjemplo, totalRondas, nombreTanda, montoPorRonda, frecuencia, diasLimitePago }) {
   const calendarioRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  const diasLimite = diasLimitePago != null && diasLimitePago !== '' ? Math.max(0, parseInt(diasLimitePago)) : 5;
+
   const exportarCalendario = async () => {
     if (!calendarioRef.current) return;
-
     setIsExporting(true);
     try {
       await exportarCalendarioComoImagen({
@@ -31,7 +32,6 @@ function CalendarioRondas({ fechasEjemplo, totalRondas, nombreTanda, montoPorRon
 
   const compartirCalendario = async () => {
     if (!calendarioRef.current) return;
-
     setIsExporting(true);
     try {
       await enviarCalendarioComoImagen({
@@ -46,151 +46,111 @@ function CalendarioRondas({ fechasEjemplo, totalRondas, nombreTanda, montoPorRon
     }
   };
 
-
+  const totalRecibir = montoPorRonda && totalRondas
+    ? (parseFloat(montoPorRonda) * (totalRondas - 1)).toLocaleString()
+    : null;
 
   return (
-    <div className="bg-white rounded-xl border-2 border-blue-200 overflow-hidden">
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 flex items-center justify-between">
-        <h3 className="font-bold text-white flex items-center gap-2">
-          <Calendar className="w-5 h-5" />
+    <div className="rounded-xl border-2 border-blue-200 overflow-hidden">
+
+      {/* Barra de acciones — fuera del ref, no aparece en la imagen */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-4 py-3 flex items-center justify-between">
+        <h3 className="font-bold text-white flex items-center gap-2 text-sm">
+          <Calendar className="w-4 h-4" />
           Calendario de Rondas
         </h3>
         <div className="flex gap-2">
-          {/*
           <button
             type="button"
             onClick={compartirCalendario}
             disabled={isExporting}
-            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all flex items-center gap-1.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Compartir"
+            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Compartir</span>
           </button>
-          */}
           <button
             type="button"
             onClick={exportarCalendario}
             disabled={isExporting}
-            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all flex items-center gap-1.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Descargar imagen"
+            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50"
           >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Descargar</span>
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{isExporting ? 'Generando...' : 'Descargar'}</span>
           </button>
         </div>
       </div>
 
-      <div className="p-4 bg-gray-50 max-h-[400px] overflow-y-auto">
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3 mb-3">
-          <p className="text-xs text-blue-800 text-center">
-            💡 <strong>Vista previa</strong> - Desplázate para ver todas las rondas. Al exportar se incluyen todas.
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-          {fechasEjemplo.map((item, index) => (
-            <div 
-              key={index}
-              className="flex flex-col items-center justify-center p-2 rounded-lg bg-white border border-blue-200 hover:border-blue-400 transition-colors"
-            >
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-lg flex items-center justify-center font-bold text-sm mb-1 shadow-sm">
-                {item.numero}
-              </div>
-              <div className="text-xs font-bold text-gray-800">
-                {item.fechaInicio.toLocaleDateString('es-MX', { 
-                  day: 'numeric', 
-                  month: 'short'
-                })}
-              </div>
-              <div className="text-[10px] text-gray-600">
-                {item.fechaInicio.getFullYear()}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* ── Contenido capturado por html2canvas (preview = export) ── */}
+      <div ref={calendarioRef} className="bg-white p-5">
 
-      {/* Calendario para exportación (oculto) */}
-      <div ref={calendarioRef} className="absolute left-[-9999px] top-[-9999px] p-8 bg-white" style={{ width: '800px' }}>
-        <div className="mb-6 text-center pb-4 border-b-2 border-blue-200">
-          <h1 className="text-3xl font-black text-gray-800 mb-2">
+        {/* Encabezado del documento */}
+        <div className="mb-4 pb-3 border-b-2 border-blue-200 text-center">
+          <h2 className="text-base font-black text-gray-800 mb-2">
             📅 {nombreTanda || 'Calendario de Tanda'}
-          </h1>
-          <div className="flex items-center justify-center gap-6 text-base text-gray-700">
-            <span className="flex items-center gap-2 font-semibold">
-              <Users className="w-5 h-5 text-blue-600" />
-              {totalRondas} participantes
+          </h2>
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-gray-600">
+            <span className="flex items-center gap-1 font-semibold">
+              <Users className="w-3 h-3 text-blue-600" />{totalRondas} participantes
             </span>
-            <span className="flex items-center gap-2 font-semibold">
-              <DollarSign className="w-5 h-5 text-green-600" />
-              ${montoPorRonda ? parseFloat(montoPorRonda).toLocaleString() : '0'} por persona
+            <span className="text-gray-300">·</span>
+            <span className="flex items-center gap-1 font-semibold">
+              <DollarSign className="w-3 h-3 text-green-600" />
+              ${montoPorRonda ? parseFloat(montoPorRonda).toLocaleString() : '0'} por ronda
             </span>
-            <span className="flex items-center gap-2 font-semibold capitalize">
-              <Clock className="w-5 h-5 text-purple-600" />
-              {frecuencia === 'cumpleaños' ? 'Cada Cumpleaños' : frecuencia}
+            <span className="text-gray-300">·</span>
+            <span className="flex items-center gap-1 font-semibold capitalize">
+              <Clock className="w-3 h-3 text-purple-600" />{frecuencia}
             </span>
+            <span className="text-gray-300">·</span>
+            <span className="font-semibold text-amber-700">⏰ Límite Pago: {diasLimite} días</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {fechasEjemplo.map((item, index) => (
-            <div 
-              key={index}
-              className="flex flex-col items-center p-3 rounded-xl bg-gradient-to-br from-blue-50 to-sky-50 border-2 border-blue-200"
-            >
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-xl flex items-center justify-center font-black text-lg shadow-lg mb-2">
-                {item.numero}
-              </div>
-              <div className="text-sm font-bold text-gray-700 mb-1">
-                Ronda {item.numero}
-              </div>
-              <div className="text-base font-black text-gray-900">
-                {item.fechaInicio.toLocaleDateString('es-MX', { 
-                  day: '2-digit', 
-                  month: 'short'
-                })}
-              </div>
-              <div className="text-sm text-gray-600 font-semibold">
-                {item.fechaInicio.getFullYear()}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 mb-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="col-span-3">
-              <div className="text-sm text-gray-600 font-semibold mb-1">
-                Total a recibir (cada participante)
-              </div>
-              <div className="text-xl font-black text-green-700">
-                ${montoPorRonda && totalRondas
-                  ? (parseFloat(montoPorRonda) * (totalRondas - 1)).toLocaleString()
-                  : '0'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-4 border-t-2 border-gray-200 text-center">
-          <p className="text-sm text-gray-600 font-semibold">
-            📱 Generado por <span className="text-blue-600 font-black">TandasMX</span>
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            {new Date().toLocaleDateString('es-MX', { 
-              day: 'numeric', 
-              month: 'long', 
-              year: 'numeric' 
+        {/* Grid de rondas — scroll-container se expande al exportar */}
+        <div className="scroll-container max-h-[360px] overflow-y-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {fechasEjemplo.map((item) => {
+              const fechaLimite = new Date(item.fechaInicio);
+              fechaLimite.setDate(fechaLimite.getDate() + diasLimite);
+              return (
+                <div
+                  key={item.numero}
+                  className="flex flex-col items-center p-2.5 rounded-lg bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-200"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-lg flex items-center justify-center font-bold text-sm mb-1.5 shadow-sm">
+                    {item.numero}
+                  </div>
+                  <div className="text-xs font-bold text-gray-800 text-center">
+                    {item.fechaInicio.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
+                  <div className="text-[10px] text-amber-700 font-medium mt-0.5 text-center">
+                    Límite Pago: {fechaLimite.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                  </div>
+                </div>
+              );
             })}
-          </p>
+          </div>
         </div>
-      </div>
 
-      <div className="px-6 pb-4 bg-gray-50">
-        <p className="text-xs text-gray-600 text-center">
-          {isExporting ? '⏳ Generando imagen...' : `💡 Al exportar se incluyen todas las ${totalRondas} rondas con sus fechas`}
-        </p>
+        {/* Pie del documento */}
+        <div className="mt-4 pt-3 border-t border-gray-100 space-y-1.5">
+          {totalRecibir && (
+            <div className="flex items-center justify-between text-sm px-0.5">
+              <span className="text-gray-500">Total a recibir por participante:</span>
+              <span className="font-black text-green-700">${totalRecibir}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between px-0.5">
+            <p className="text-[10px] text-gray-400">
+              💡 Límite Pago (Fecha) = Fecha inicio de ronda  + {diasLimite} días 
+            </p>
+            <p className="text-[10px] text-gray-400">
+              📱 TandasMX · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -203,12 +163,13 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
   
   const [formData, setFormData] = useState({
     nombre: '',
-    montoPorRonda: '',
-    totalRondas: '',
+    montoPorRonda: '500',
+    totalRondas: '10',
     fechaInicio: obtenerFechaHoyISO(),
     frecuencia: 'semanal',
     diasRecordatorio: '1',
-    metodoPago: 'Transferencia'
+    metodoPago: 'Transferencia',
+    diasLimitePago: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -231,37 +192,61 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
   }, [formData.fechaInicio, formData.totalRondas, formData.frecuencia]);
 
   // ==================== VALIDACIÓN ====================
+  const FIELD_IDS = {
+    nombre:        'nombre-tanda',
+    montoPorRonda: 'monto-ronda',
+    totalRondas:   'total-rondas',
+    fechaInicio:   'fecha-inicio',
+    diasLimitePago:'dias-limite-pago',
+  };
+
+  const scrollToFirstError = (errorsObj) => {
+    const firstKey = Object.keys(errorsObj)[0];
+    const id = FIELD_IDS[firstKey];
+    if (!id) return;
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus();
+    }, 50);
+  };
+
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.nombre.trim()) {
       newErrors.nombre = 'El nombre es requerido';
     }
-    
+
     if (!formData.montoPorRonda || formData.montoPorRonda <= 0) {
       newErrors.montoPorRonda = 'El monto debe ser mayor a 0';
     }
-    
+
     if (!formData.totalRondas || formData.totalRondas < 2) {
       newErrors.totalRondas = 'Debe haber al menos 2 participantes';
     }
-    
-    // Para tanda cumpleañera, la fecha de inicio no es requerida
+
     if (formData.frecuencia !== 'cumpleaños' && !formData.fechaInicio) {
       newErrors.fechaInicio = 'La fecha de inicio es requerida';
     }
 
-    // Validar que la fecha no sea del pasado (para tandas normales)
     if (formData.frecuencia !== 'cumpleaños' && formData.fechaInicio) {
       const fechaSeleccionada = new Date(formData.fechaInicio);
       const hoy = new Date(obtenerFechaHoyISO());
-      
       if (fechaSeleccionada < hoy) {
         newErrors.fechaInicio = 'La fecha de inicio no puede ser anterior a hoy';
       }
     }
-    
+
+    if (formData.frecuencia !== 'cumpleaños') {
+      const dias = parseInt(formData.diasLimitePago);
+      if (formData.diasLimitePago === '' || isNaN(dias) || dias < 0) {
+        newErrors.diasLimitePago = 'Solo se permiten números enteros positivos (0 o más)';
+      }
+    }
+
     setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) scrollToFirstError(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
@@ -287,6 +272,7 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
           frecuencia: formData.frecuencia,
           diasRecordatorio: parseInt(formData.diasRecordatorio),
           metodoPago: formData.metodoPago,
+          diasLimitePago: parseInt(formData.diasLimitePago) || 5,
           rondaActual: 1,
           status: 'active'
         })
@@ -312,21 +298,32 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
   // ==================== HANDLERS ====================
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: null
-      }));
+
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'diasLimitePago') {
+      const dias = parseInt(value);
+      if (value !== '' && (isNaN(dias) || dias < 0)) {
+        setErrors(prev => ({ ...prev, diasLimitePago: 'Solo se permiten números enteros positivos (0 o más)' }));
+      } else {
+        setErrors(prev => ({ ...prev, diasLimitePago: null }));
+      }
+    } else if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
     }
   };
 
   const esCumpleañera = formData.frecuencia === 'cumpleaños';
+
+  const handleMontoKeyDown = (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const current = parseFloat(e.target.value) || 0;
+    const nuevo = e.key === 'ArrowUp'
+      ? Math.ceil((current + 1) / 100) * 100
+      : Math.max(100, Math.floor((current - 1) / 100) * 100);
+    setFormData(prev => ({ ...prev, montoPorRonda: String(nuevo) }));
+  };
 
   // Función para obtener el texto del monto a recibir
   const obtenerTextoMontoRecibir = () => {
@@ -448,12 +445,13 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
                   name="montoPorRonda"
                   type="number"
                   min="1"
-                  step="0.01"
+                  step="1"
                   value={formData.montoPorRonda}
                   onChange={handleChange}
+                  onKeyDown={handleMontoKeyDown}
                   className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                    errors.montoPorRonda 
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
+                    errors.montoPorRonda
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                       : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
                   }`}
                   placeholder="1000"
@@ -538,14 +536,53 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
               </div>
             )}
 
+            {/* Días Límite de Pago */}
+            {!esCumpleañera && (
+              <div>
+                <label htmlFor="dias-limite-pago" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <Clock className="w-4 h-4 inline mr-1" />
+                  Días Límite de Pago
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="dias-limite-pago"
+                    name="diasLimitePago"
+                    type="number"
+                    min="0"
+                    max="30"
+                    placeholder="5"
+                    value={formData.diasLimitePago}
+                    onChange={handleChange}
+                    className={`w-24 px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all text-center font-bold text-lg ${
+                      errors.diasLimitePago
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                        : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                    }`}
+                  />
+                  <span className="text-sm text-gray-500">días después.</span>
+                </div>
+                {errors.diasLimitePago ? (
+                  <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                    {errors.diasLimitePago}
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    Recomendado: 3–7 días.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Calendario de Rondas - SOLO para tandas normales */}
-            {!esCumpleañera && fechasEjemplo.length > 0 && (
-              <CalendarioRondas 
+            {!esCumpleañera && fechasEjemplo.length > 0 && formData.diasLimitePago !== '' && (
+              <CalendarioRondas
                 fechasEjemplo={fechasEjemplo}
                 totalRondas={parseInt(formData.totalRondas)}
                 nombreTanda={formData.nombre}
                 montoPorRonda={formData.montoPorRonda}
                 frecuencia={formData.frecuencia}
+                diasLimitePago={formData.diasLimitePago !== '' ? parseInt(formData.diasLimitePago) : 5}
               />
             )}
 
@@ -630,27 +667,36 @@ export default function CrearTandaView({ setTandaData, setLoading, setError, loa
               </div>
             </div>
 
-            {/* Información Adicional */}
-            <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-blue-800">
-                  <p className="font-semibold mb-1">Recuerda:</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    {esCumpleañera ? (
-                      <>
-                        <li>Registra a todos con su fecha de cumpleaños</li>
-                        <li>El calendario se genera automáticamente al completar el registro</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>Podrás agregar participantes después de crear la tanda</li>
-                        <li>Las fechas se calculan según la frecuencia seleccionada</li>
-                      </>
-                    )}
-                  </ul>
+            {/* Mensaje de primera impresión: puntaje de confianza — solo tandas normales */}
+            {!esCumpleañera && <div className="rounded-xl border border-blue-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 flex items-center gap-2">
+                <span className="text-base">⭐</span>
+                <p className="text-white text-xs font-bold tracking-wide uppercase">Sistema de Puntaje de Confianza</p>
+              </div>
+              <div className="bg-blue-50 px-4 py-3 space-y-2">
+                <p className="text-xs text-blue-900 leading-relaxed">
+                  Cada participante tiene un <strong>puntaje de confianza</strong> que se construye con cada pago: pagos a tiempo suman puntos, pagos tardíos o no realizados los restan.
+                </p>
+                <p className="text-xs text-blue-800 leading-relaxed">
+                  Esto te permite saber <strong>quién es buen pagador</strong> y considerarlos primero en futuras tandas. Los participantes con mayor puntaje son tu equipo más confiable.
+                </p>
+                <div className="pt-1.5 border-t border-blue-200 flex items-start gap-2">
+                  <span className="text-sm flex-shrink-0">⏰</span>
+                  <p className="text-[11px] text-blue-700 font-medium leading-relaxed">
+                    <strong>Importante:</strong> Registra los pagos el mismo día en que te paguen. El sistema calcula el puntaje con base en la fecha que tú registras — si lo haces tarde, puede penalizar a alguien que sí cumplió a tiempo.
+                  </p>
                 </div>
               </div>
+            </div>}
+
+            {/* Nota adicional según tipo */}
+            <div className="flex items-start gap-2 px-1">
+              <AlertCircle className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-gray-500">
+                {esCumpleañera
+                  ? 'Registra a todos los participantes con su fecha de cumpleaños. El calendario se genera automáticamente.'
+                  : 'Podrás agregar participantes una vez creada la tanda. Las fechas de rondas se calculan automáticamente.'}
+              </p>
             </div>
 
             {/* Botón de Crear */}

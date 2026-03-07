@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Users, AlertCircle, CheckCircle, Loader } from 'lucide-react';
-import { calcularRondaActual } from '../utils/tandaCalculos';
+import { calcularRondaActual, DIAS_VENTANA_CUMPLE } from '../utils/tandaCalculos';
 import VerifyPhone from './VerifyPhone'; // 🆕 IMPORTAR
 import logoTanda from '../public/assets/logos/logo-tanda-512.png';
 import logoTandaSvg from '../public/assets/logos/logo-tanda.svg';
@@ -142,6 +142,24 @@ export default function PublicBoard() {
   // Usar función importada para calcular ronda actual
   const rondaActual = calcularRondaActual(tandaData);
   const proximoNumero = tandaData.participantes?.find(p => p.numeroAsignado === rondaActual);
+  const esCumpleañera = tandaData?.frecuencia === 'cumpleaños';
+
+  // Para cumpleañeras: participantes con cumpleaños dentro del rango de vigencia
+  const cumpleañerosVigentes = (() => {
+    if (!esCumpleañera) return new Set();
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    return new Set(
+      (tandaData.participantes || [])
+        .filter(p => {
+          if (!p.fechaCumpleaños) return false;
+          const base = new Date(p.fechaCumpleaños + 'T00:00:00');
+          const cumpleAno = new Date(hoy.getFullYear(), base.getMonth(), base.getDate());
+          const diasDesde = Math.round((hoy - cumpleAno) / 86400000);
+          return diasDesde >= 0 && diasDesde <= DIAS_VENTANA_CUMPLE;
+        })
+        .map(p => p.participanteId)
+    );
+  })();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-slate-50 p-4 md:p-8">
@@ -196,10 +214,17 @@ export default function PublicBoard() {
 
           {/* Próximo Número */}
           {proximoNumero && (
-            <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 text-white text-center shadow-lg">
-              <div className="text-sm font-semibold mb-1 opacity-90">Turno Actual</div>
+            <div className={`bg-gradient-to-r ${esCumpleañera ? 'from-pink-500 to-purple-600' : 'from-green-500 to-emerald-600'} rounded-2xl p-6 text-white text-center shadow-lg`}>
+              <div className="text-sm font-semibold mb-1 opacity-90">
+                {esCumpleañera ? 'Cumpleaños Vigente 🎂' : 'Turno Actual'}
+              </div>
               <div className="text-5xl font-black mb-2">{proximoNumero.numeroAsignado}</div>
               <div className="text-xl font-bold">{proximoNumero.nombre}</div>
+              {esCumpleañera && proximoNumero.fechaCumpleaños && (
+                <div className="text-sm opacity-90 mt-1">
+                  {new Date(proximoNumero.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -226,11 +251,15 @@ export default function PublicBoard() {
                                  pagoRondaActual.monto < tandaData.montoPorRonda && 
                                  !esExento;
                 
+                const esCumpleVigente = esCumpleañera && cumpleañerosVigentes.has(participante.participanteId);
+
                 return (
                   <div
                     key={participante.participanteId}
                     className={`p-3 md:p-4 rounded-2xl border-2 transition-all ${
-                      esProximo
+                      esProximo && esCumpleañera
+                        ? 'border-pink-400 bg-pink-50 shadow-md'
+                        : esProximo
                         ? 'border-green-500 bg-green-50 shadow-md'
                         : 'border-gray-200 bg-gray-50 hover:shadow-md'
                     }`}
@@ -240,7 +269,9 @@ export default function PublicBoard() {
                       {/* Fila 1: Badge + Nombre */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center font-bold text-lg md:text-xl shadow-sm flex-shrink-0 ${
-                          esProximo
+                          esProximo && esCumpleañera
+                            ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white'
+                            : esProximo
                             ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
                             : 'bg-gray-200 text-gray-700'
                         }`}>
@@ -248,13 +279,24 @@ export default function PublicBoard() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-sm md:text-base text-gray-800 truncate">
-                            {participante.nombre}
+                            {participante.nombre.split(' ').slice(0, 2).join(' ')}
                           </div>
-                          {esProximo && (
+                          {esProximo && esCumpleañera ? (
+                            <span className="text-xs text-pink-600 font-semibold">
+                              🎂 Cumpleaños vigente
+                              {participante.fechaCumpleaños && (
+                                <> · {new Date(participante.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}</>
+                              )}
+                            </span>
+                          ) : esProximo ? (
                             <span className="text-xs md:text-sm text-green-600 font-semibold">
                               ← Turno actual
                             </span>
-                          )}
+                          ) : esCumpleVigente ? (
+                            <span className="text-xs text-pink-500 font-semibold">
+                              🎂 Cumpleaños reciente
+                            </span>
+                          ) : null}
                         </div>
                       </div>
 

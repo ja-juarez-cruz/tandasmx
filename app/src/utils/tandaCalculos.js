@@ -158,10 +158,16 @@ export const calcularRondaActual = (tandaData) => {
         const diaCumple = fechaCumple.getDate();
         
         const yaPaso = mesHoy > mesCumple || (mesHoy === mesCumple && diaHoy >= diaCumple);
-        
+
         if (yaPaso) {
           numeroActual = p.numeroAsignado;
         } else {
+          // Si el cumpleaños próximo cae dentro de la ventana de vigencia, es la ronda actual
+          const cumpleAnoDate = new Date(hoy.getFullYear(), mesCumple, diaCumple);
+          const diasHasta = Math.round((cumpleAnoDate - hoy) / 86400000);
+          if (diasHasta <= DIAS_VENTANA_CUMPLE) {
+            numeroActual = p.numeroAsignado;
+          }
           break;
         }
       }

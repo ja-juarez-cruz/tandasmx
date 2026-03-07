@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, DollarSign, Settings } from 'lucide-react';
+
+const NOTIF_KEY = 'notif_dias_limite_pago';
 
 export default function BottomNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [configNotif, setConfigNotif] = useState(() => localStorage.getItem(NOTIF_KEY) !== 'visto');
+
+  useEffect(() => {
+    if (location.pathname === '/configuracion' && configNotif) {
+      localStorage.setItem(NOTIF_KEY, 'visto');
+      setConfigNotif(false);
+    }
+  }, [location.pathname]);
 
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Inicio' },
@@ -51,7 +61,7 @@ export default function BottomNavigation() {
                 <button
                   key={item.path}
                   onClick={() => navigate(item.path)}
-                  className={`flex flex-col items-center justify-center gap-1 min-w-[70px] py-2 px-3 rounded-xl transition-all duration-300 ${
+                  className={`relative flex flex-col items-center justify-center gap-1 min-w-[70px] py-2 px-3 rounded-xl transition-all duration-300 ${
                     active
                       ? 'bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg shadow-blue-500/30 scale-110 -translate-y-1'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-blue-600 hover:scale-105'
@@ -61,6 +71,9 @@ export default function BottomNavigation() {
                   <span className={`text-[10px] font-bold ${active ? 'drop-shadow-sm' : ''}`}>
                     {item.label}
                   </span>
+                  {configNotif && item.path === '/configuracion' && (
+                    <span className="absolute top-1.5 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-gray-100 animate-pulse" />
+                  )}
                 </button>
               );
             })}

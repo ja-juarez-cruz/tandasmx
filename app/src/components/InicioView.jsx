@@ -290,83 +290,45 @@ export default function InicioView({ tandas, setActiveView, onSeleccionarTanda, 
                           )}
 
                           {/* Contador cumpleañeras */}
-                          {esCumpleañera && proximoCumple && (
-                            <div className="p-3 bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 rounded-xl space-y-2">
-                              {proximoCumple.cumpleañerosActuales.length > 0 ? (
-                                /* Cumpleaños actual: dentro del rango de ±3 días */
-                                <>
-                                  <p className="text-[10px] font-bold text-pink-800 tracking-wide">
-                                    Cumpleaños Vigente{proximoCumple.cumpleañerosActuales.length > 1 ? 's' : ''}
+                          {esCumpleañera && proximoCumple && proximoCumple.cumpleañerosActuales.length > 0 && (
+                              /* ── Cumpleaños vigente ── */
+                              <div className="bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-300 rounded-xl overflow-hidden">
+                                <div className="bg-gradient-to-r from-pink-500 to-purple-600 px-3 py-1.5 text-center">
+                                  <p className="text-[10px] font-bold text-white tracking-widest uppercase">
+                                    🎂 Cumpleaños Vigente{proximoCumple.cumpleañerosActuales.length > 1 ? 's' : ''}
                                   </p>
-                                  {proximoCumple.cumpleañerosActuales.map(p => (
-                                    <div key={p.participanteId} className="flex items-center gap-2 bg-pink-100 rounded-lg p-1.5">
-                                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                        {p.numeroAsignado}
+                                </div>
+                                {proximoCumple.cumpleañerosActuales.map((p, idx) => (
+                                  <div key={p.participanteId} className={`flex items-center gap-2 px-3 py-2.5 ${idx > 0 ? 'border-t border-pink-200' : ''}`}>
+                                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                                      {p.numeroAsignado}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-bold text-gray-800 truncate">
+                                        {p.nombre.split(' ').slice(0, 2).join(' ')}
                                       </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-bold text-pink-900 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
-                                        <div className="text-[10px] text-pink-600">
-                                          {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
-                                          {' · '}
-                                          {p.diasDesde === 0
-                                            ? '¡Hoy!'
-                                            : p.diasDesde < 0
-                                            ? `Faltan ${-p.diasDesde} día${-p.diasDesde !== 1 ? 's' : ''}`
-                                            : `Hace ${p.diasDesde} día${p.diasDesde !== 1 ? 's' : ''}`}
-                                        </div>
+                                      <div className="text-[10px] text-pink-600">
+                                        🎂 {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
                                       </div>
                                     </div>
-                                  ))}
-                                </>
-                              ) : (
-                                /* Sin cumpleaños activo: mostrar recientes + próximos */
-                                <>
-                                  {proximoCumple.cumpleañerosRecientes.length > 0 && (
-                                    <div>
-                                      <p className="text-[10px] font-semibold text-amber-800 tracking-wide mb-1">
-                                        Cumpleaños Reciente{proximoCumple.cumpleañerosRecientes.length > 1 ? 's' : ''}
-                                      </p>
-                                      {proximoCumple.cumpleañerosRecientes.map(p => (
-                                        <div key={p.participanteId} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-1.5 mb-1 last:mb-0">
-                                          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                            {p.numeroAsignado}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <div className="text-xs font-bold text-amber-800 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
-                                            <div className="text-[10px] text-amber-700">
-                                              {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
-                                              {' · '}hace {p.diasDesde} día{p.diasDesde !== 1 ? 's' : ''}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {proximoCumple.cumpleañerosProximos.length > 0 && (
-                                    <div>
-                                      <p className="text-[10px] font-semibold text-purple-700 tracking-wide mb-1">
-                                        Próximo{proximoCumple.cumpleañerosProximos.length > 1 ? 's' : ''} Cumpleaños
-                                      </p>
-                                      {proximoCumple.cumpleañerosProximos.map(p => (
-                                        <div key={p.participanteId} className="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg p-1.5 mb-1 last:mb-0">
-                                          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-400 to-purple-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                            {p.numeroAsignado}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <div className="text-xs font-bold text-purple-700 truncate">{p.nombre.split(' ').slice(0, 2).join(' ')}</div>
-                                            <div className="text-[10px] text-purple-700">
-                                              {new Date(p.fechaCumpleaños + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
-                                              {' · '}dentro de {p.diasHasta} día{p.diasHasta !== 1 ? 's' : ''}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                                      p.diasDesde === 0
+                                        ? 'bg-pink-500 text-white'
+                                        : p.diasDesde < 0
+                                        ? 'bg-purple-100 text-purple-700'
+                                        : 'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {p.diasDesde === 0
+                                        ? '¡Hoy!'
+                                        : p.diasDesde < 0
+                                        ? `${-p.diasDesde}d`
+                                        : `Hace ${p.diasDesde}d`}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          }
 
                           {/* Fechas */}
                           {esCumpleañera && proximoCumple?.cumpleañerosHoy?.length > 0 ? (

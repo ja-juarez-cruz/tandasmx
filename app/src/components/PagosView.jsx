@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CreditCard, CheckCircle, XCircle, Clock, Filter, RefreshCw, X, Save, DollarSign, Calendar, FileText, AlertCircle, ChevronDown, ChevronUp, Star } from 'lucide-react';
-import { calcularRondaActual, calcularEstadoPorParticipante } from '../utils/tandaCalculos';
+import { CreditCard, CheckCircle, XCircle, Clock, Filter, RefreshCw, X, Save, DollarSign, Calendar, FileText, AlertCircle, ChevronDown, ChevronUp, Star, Award, TrendingUp, ChevronRight } from 'lucide-react';
+
+const LEVEL_STYLES = {
+  nuevo:     { bg: 'bg-gray-100',   text: 'text-gray-600',   border: 'border-gray-300',   bar: 'bg-gray-400',    emoji: '🥉', label: 'Nuevo'     },
+  confiable: { bg: 'bg-blue-50',    text: 'text-blue-700',   border: 'border-blue-300',   bar: 'bg-blue-500',    emoji: '🥈', label: 'Confiable' },
+  destacado: { bg: 'bg-amber-50',   text: 'text-amber-700',  border: 'border-amber-300',  bar: 'bg-amber-500',   emoji: '🥇', label: 'Destacado' },
+  elite:     { bg: 'bg-purple-50',  text: 'text-purple-700', border: 'border-purple-300', bar: 'bg-purple-500',  emoji: '💎', label: 'Elite'     },
+};
+import { calcularRondaActual, calcularEstadoPorParticipante, calcularFechaRonda, DIAS_VENTANA_CUMPLE } from '../utils/tandaCalculos';
 import { apiFetch } from '../utils/apiFetch';
 
 export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
@@ -12,6 +19,10 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
   const [pagoSeleccionado, setPagoSeleccionado] = useState(null);
   const [clickTimeout, setClickTimeout] = useState(null);
   const [showInstrucciones, setShowInstrucciones] = useState(false);
+  const [showScores, setShowScores] = useState(() => localStorage.getItem('pagos_show_scores') === 'true');
+  const [scoresData, setScoresData] = useState({});
+  const [loadingScores, setLoadingScores] = useState(false);
+  const [scoreModal, setScoreModal] = useState(null);
   const [editFormData, setEditFormData] = useState({
     fechaPago: '',
     metodoPago: 'Transferencia',
@@ -22,6 +33,61 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
 
   // Helper para URL de pagos
   const pagosUrl = `/tandas/${tandaData?.tandaId}/pagos`;
+
+  // ====================================
+  // WEBHOOK DE PAGOS (score)
+  // ====================================
+
+  // Días de gracia para clasificar pagos — debe coincidir con el backend
+  const WEBHOOK_DIAS_LIMITE = 5;
+
+  const clasificarTipoPago = (fechaPagoISO, ronda) => {
+    if (!tandaData?.fechaInicio) return 'PAYMENT_ON_TIME';
+
+    const fechaPago = new Date(fechaPagoISO);
+    fechaPago.setHours(0, 0, 0, 0);
+
+    const fechaBase = new Date(tandaData.fechaInicio + 'T00:00:00');
+    const fechaRonda = calcularFechaRonda(fechaBase, ronda, tandaData.frecuencia);
+    fechaRonda.setHours(0, 0, 0, 0);
+
+    const fechaLimite = new Date(fechaRonda);
+    fechaLimite.setDate(fechaLimite.getDate() + WEBHOOK_DIAS_LIMITE);
+
+    if (fechaPago < fechaRonda) return 'PAYMENT_EARLY';
+    if (fechaPago <= fechaLimite) return 'PAYMENT_ON_TIME';
+    return 'PAYMENT_LATE';
+  };
+
+  const enviarEventoPago = (eventType, participanteId, ronda, fechaPagoISO = '') => {
+    const userId = tandaData?.adminId;
+    if (!userId || !tandaData?.tandaId) return;
+
+    let fechaRondaISO = '';
+    if (tandaData?.fechaInicio) {
+      const fechaBase = new Date(tandaData.fechaInicio + 'T00:00:00');
+      const fechaRonda = calcularFechaRonda(fechaBase, ronda, tandaData.frecuencia);
+      fechaRondaISO = fechaRonda.toISOString().split('T')[0];
+    }
+
+    const fechaPagoStr = fechaPagoISO ? fechaPagoISO.split('T')[0] : '';
+
+    apiFetch('/webhooks/pagos', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId,
+        actorType: 'participante',
+        participanteId,
+        eventType,
+        tandaId: tandaData.tandaId,
+        metadata: {
+          roundNumber: ronda,
+          fechaRonda: fechaRondaISO,
+          fechaPago:  fechaPagoStr,
+        },
+      }),
+    }).catch(err => console.warn('Webhook score pago:', err));
+  };
 
   // ====================================
   // CARGAR MATRIZ DE PAGOS
@@ -77,6 +143,37 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
   useEffect(() => {
     if (tandaData?.tandaId) cargarMatrizPagos();
   }, [tandaData?.tandaId, cargarMatrizPagos]);
+
+  // ====================================
+  // SCORES DE PARTICIPANTES
+  // ====================================
+
+  const cargarScores = useCallback(async () => {
+    if (!tandaData?.tandaId) return;
+    setLoadingScores(true);
+    try {
+      const data = await apiFetch(`/tandas/${tandaData.tandaId}/scores`);
+      if (data.participantes) {
+        const map = {};
+        data.participantes.forEach(p => { map[p.participanteId] = p; });
+        setScoresData(map);
+      }
+    } catch (err) {
+      console.warn('Error cargando scores:', err);
+    } finally {
+      setLoadingScores(false);
+    }
+  }, [tandaData?.tandaId]);
+
+  const toggleScores = () => {
+    const nuevo = !showScores;
+    setShowScores(nuevo);
+    localStorage.setItem('pagos_show_scores', String(nuevo));
+  };
+
+  useEffect(() => {
+    if (showScores && tandaData?.tandaId && tandaData?.frecuencia !== 'cumpleaños') cargarScores();
+  }, [showScores, tandaData?.tandaId, tandaData?.frecuencia, cargarScores]);
 
   // ====================================
   // VALIDACIONES Y GESTIÓN DE PAGOS
@@ -224,9 +321,21 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
       const data = await registrarPago(bodyData);
 
       if (data.success) {
+        // Enviar evento de score al webhook (fire-and-forget, no bloquea la UI)
+        if (estaPagadoAhora) {
+          // Desmarcando: cancelar el pago anterior (solo si no era exento)
+          if (!pagoActual?.exentoPago) {
+            enviarEventoPago('PAYMENT_CANCEL', participanteId, ronda, pagoActual?.fechaPago || '');
+          }
+        } else if (!bodyData.exentoPago) {
+          // Marcando como pagado: clasificar según fecha de pago vs fecha de ronda
+          const tipoPago = clasificarTipoPago(bodyData.fechaPago, ronda);
+          enviarEventoPago(tipoPago, participanteId, ronda, bodyData.fechaPago);
+        }
+
         setMatrizPagos(prev => {
           if (!Array.isArray(prev)) prev = [];
-          
+
           if (estaPagadoAhora) {
             return prev.map(p => {
               if (p.participanteId === participanteId && p.ronda === ronda) {
@@ -288,9 +397,11 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
     );
   }
 
+  const esCumpleañera = tandaData.frecuencia === 'cumpleaños';
   const participantes = tandaData.participantes || [];
   const rondas = Array.from({ length: tandaData.totalRondas }, (_, i) => i + 1);
   const rondaActual = calcularRondaActual(tandaData);
+
 
   const participantesFiltrados = participantes.filter(p => {
     if (filtroEstado === 'todos') return true;
@@ -367,6 +478,22 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
             Instrucciones
           </button>
         </div>
+
+        {/* Fila 3: Botón de puntajes — solo tandas normales */}
+        {!esCumpleañera && <div className="mt-2 pt-2 border-t border-gray-100">
+          <button
+            onClick={toggleScores}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${
+              showScores
+                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-white shadow-sm shadow-amber-200'
+                : 'bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100'
+            }`}
+            title={showScores ? 'Ocultar puntajes de confianza' : 'Ver puntaje de confianza de cada participante'}
+          >
+            <Award className={`w-3.5 h-3.5 ${loadingScores ? 'animate-pulse' : ''}`} />
+            {showScores ? 'Ocultar puntajes' : '✨ Ver puntajes de confianza'}
+          </button>
+        </div>}
 
         {/* Panel de instrucciones colapsable */}
         {showInstrucciones && (
@@ -446,7 +573,35 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
                                     <span className="hidden sm:inline">Turno</span>
                                   </span>
                                 )}
+                                {esCumpleañera && participante.fechaCumpleaños && (() => {
+                                  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+                                  const base = new Date(participante.fechaCumpleaños + 'T00:00:00');
+                                  const cumpleAno = new Date(hoy.getFullYear(), base.getMonth(), base.getDate());
+                                  const diasDesde = Math.round((hoy - cumpleAno) / 86400000);
+                                  return diasDesde >= 0 && diasDesde <= DIAS_VENTANA_CUMPLE;
+                                })() && (
+                                  <span className="flex-shrink-0 text-[10px] font-bold text-pink-700 bg-pink-100 px-1.5 py-0.5 rounded-full">
+                                    🎂
+                                  </span>
+                                )}
                               </div>
+                              {showScores && !esCumpleañera && (() => {
+                                const sc = scoresData[participante.participanteId];
+                                const level = sc?.scoreLevel || 'nuevo';
+                                const style = LEVEL_STYLES[level] || LEVEL_STYLES.nuevo;
+                                return (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setScoreModal({ participante, score: sc }); }}
+                                    className={`mt-0.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-bold transition-all hover:opacity-80 ${style.bg} ${style.text} ${style.border}`}
+                                    title="Ver puntaje de confianza"
+                                  >
+                                    <span>{style.emoji}</span>
+                                    <span>{sc ? sc.scoreGlobal : '—'}</span>
+                                    <span className="hidden sm:inline">· {style.label}</span>
+                                    <ChevronRight className="w-2.5 h-2.5 opacity-60" />
+                                  </button>
+                                );
+                              })()}
                               <div className="text-[10px] md:text-xs text-gray-500 truncate hidden md:block">{participante.telefono}</div>
                             </div>
                           </div>
@@ -620,6 +775,114 @@ export default function PagosView({ tandaData, setTandaData, loadAdminData }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Score de Confianza */}
+      {scoreModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[9999] animate-fadeIn"
+          onClick={() => setScoreModal(null)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            {(() => {
+              const sc = scoreModal.score;
+              const level = sc?.scoreLevel || 'nuevo';
+              const style = LEVEL_STYLES[level] || LEVEL_STYLES.nuevo;
+              const score = sc?.scoreGlobal ?? 20;
+              const nextLevel = sc?.nextLevel;
+              const levelInfo = sc?.levelInfo || { minScore: 0, maxScore: 30 };
+              const progress = Math.min(100, Math.round(
+                ((score - levelInfo.minScore) / Math.max(1, levelInfo.maxScore - levelInfo.minScore)) * 100
+              ));
+
+              return (
+                <>
+                  <div className={`p-5 rounded-t-3xl sm:rounded-t-2xl ${style.bg} border-b ${style.border}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Award className={`w-5 h-5 ${style.text}`} />
+                        <span className={`text-sm font-bold ${style.text}`}>Puntaje de Confianza</span>
+                      </div>
+                      <button onClick={() => setScoreModal(null)}
+                        className="p-1.5 hover:bg-black/10 rounded-lg transition-colors">
+                        <X className={`w-4 h-4 ${style.text}`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center text-2xl font-black border-2 ${style.border} bg-white shadow-sm`}>
+                        {style.emoji}
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-800 text-base">{scoreModal.participante.nombre}</p>
+                        <div className="flex items-baseline gap-1">
+                          <span className={`text-3xl font-black ${style.text}`}>{score}</span>
+                          <span className="text-sm text-gray-500 font-semibold">pts</span>
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${style.bg} ${style.text} ${style.border}`}>
+                          {style.label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-5 space-y-4">
+                    {/* Barra de progreso dentro del nivel */}
+                    <div>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+                        <span className="font-semibold">Progreso en nivel {style.label}</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${style.bar}`}
+                          style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                        <span>{levelInfo.minScore} pts</span>
+                        <span>{levelInfo.maxScore} pts</span>
+                      </div>
+                    </div>
+
+                    {/* Siguiente nivel */}
+                    {nextLevel ? (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                        <TrendingUp className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-700">
+                            Siguiente nivel: <span className="font-black">{LEVEL_STYLES[nextLevel.level]?.label || nextLevel.level}</span>
+                          </p>
+                          <p className="text-xs text-gray-500">{nextLevel.pointsLeft} pts para llegar</p>
+                        </div>
+                        <span className="text-xl">{LEVEL_STYLES[nextLevel.level]?.emoji}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl border border-purple-200">
+                        <span className="text-xl">💎</span>
+                        <p className="text-xs font-bold text-purple-700">¡Nivel máximo alcanzado!</p>
+                      </div>
+                    )}
+
+                    {/* Cómo se gana el puntaje */}
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-xs font-bold text-blue-800 mb-1.5">¿Cómo se calcula?</p>
+                      <div className="space-y-1 text-[11px] text-blue-700">
+                        <div className="flex justify-between"><span>✅ Pago anticipado</span><span className="font-bold">+2 pts</span></div>
+                        <div className="flex justify-between"><span>✅ Pago a tiempo</span><span className="font-bold">+1 pt</span></div>
+                        <div className="flex justify-between"><span>⏰ Pago tardío</span><span className="font-bold text-amber-700">-1 pt</span></div>
+                        <div className="flex justify-between"><span>❌ Pago omitido</span><span className="font-bold text-red-700">-3 pts</span></div>
+                      </div>
+                    </div>
+
+                    <button onClick={() => setScoreModal(null)}
+                      className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all text-sm">
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

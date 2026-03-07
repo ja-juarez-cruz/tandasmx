@@ -17,7 +17,8 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
     montoPorRonda: tandaData?.montoPorRonda || '',
     fechaInicio: tandaData?.fechaInicio || '',
     frecuencia: tandaData?.frecuencia || 'semanal',
-    diasRecordatorio: tandaData?.diasRecordatorio || 1
+    diasRecordatorio: tandaData?.diasRecordatorio || 1,
+    diasLimitePago: tandaData?.diasLimitePago || 5,
   });
 
   const fechasCalendarRef = useRef(null);
@@ -28,8 +29,36 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [confirmacionTexto, setConfirmacionTexto] = useState('');
   const [rondasColapsadas, setRondasColapsadas] = useState(true);
+  const [errors, setErrors] = useState({});
+
+  const CONFIG_FIELD_IDS = {
+    nombre:        'config-nombre',
+    montoPorRonda: 'config-monto',
+    diasLimitePago:'config-dias-limite',
+  };
+
+  const scrollToFirstError = (errorsObj) => {
+    const firstKey = Object.keys(errorsObj)[0];
+    const id = CONFIG_FIELD_IDS[firstKey];
+    if (!id) return;
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus();
+    }, 50);
+  };
 
   const esCumpleañera = tandaData?.frecuencia === 'cumpleaños';
+
+  const handleMontoKeyDown = (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const current = parseFloat(e.target.value) || 0;
+    const nuevo = e.key === 'ArrowUp'
+      ? Math.ceil((current + 1) / 100) * 100
+      : Math.max(100, Math.floor((current - 1) / 100) * 100);
+    setFormData(prev => ({ ...prev, montoPorRonda: String(nuevo) }));
+  };
 
   useEffect(() => {
     if (tandaData) {
@@ -38,7 +67,8 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
         montoPorRonda: tandaData.montoPorRonda || '',
         fechaInicio: tandaData.fechaInicio || '',
         frecuencia: tandaData.frecuencia || 'semanal',
-        diasRecordatorio: tandaData.diasRecordatorio || 1
+        diasRecordatorio: tandaData.diasRecordatorio || 1,
+        diasLimitePago: tandaData.diasLimitePago || 5,
       });
     }
   }, [tandaData]);
@@ -97,23 +127,48 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
   
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'diasLimitePago') {
+      const dias = parseInt(value);
+      if (value !== '' && (isNaN(dias) || dias < 0)) {
+        setErrors(prev => ({ ...prev, diasLimitePago: 'Solo se permiten números enteros positivos (0 o más)' }));
+      } else {
+        setErrors(prev => ({ ...prev, diasLimitePago: null }));
+      }
+    } else if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
     setSuccess(null);
+
+    // Validar antes de enviar
+    const newErrors = {};
+    if (!formData.nombre?.trim()) newErrors.nombre = 'El nombre es requerido';
+    if (!formData.montoPorRonda || parseFloat(formData.montoPorRonda) <= 0)
+      newErrors.montoPorRonda = 'El monto debe ser mayor a 0';
+    const dias = parseInt(formData.diasLimitePago);
+    if (formData.diasLimitePago === '' || isNaN(dias) || dias < 0)
+      newErrors.diasLimitePago = 'Solo se permiten números enteros positivos (0 o más)';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      scrollToFirstError(newErrors);
+      return;
+    }
+    setErrors({});
+    setLoading(true);
 
     try {
       const payload = {
         nombre: formData.nombre,
         montoPorRonda: parseFloat(formData.montoPorRonda),
         diasRecordatorio: parseInt(formData.diasRecordatorio),
+        diasLimitePago: parseInt(formData.diasLimitePago) || 5,
       };
 
       if (!esCumpleañera) {
@@ -258,9 +313,10 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
                   name="montoPorRonda"
                   type="number"
                   min="1"
-                  step="0.01"
+                  step="1"
                   value={formData.montoPorRonda}
                   onChange={handleChange}
+                  onKeyDown={handleMontoKeyDown}
                   className="w-full px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
                   required
                 />
@@ -289,6 +345,53 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
                 </div>
               )}
             </div>
+
+            {/* Días Límite de Pago — solo tandas normales */}
+            {!esCumpleañera && (
+              <>
+                <div>
+                  <label htmlFor="config-dias-limite" className="block text-xs md:text-sm font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
+                    Días Límite de Pago
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="config-dias-limite"
+                      name="diasLimitePago"
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={formData.diasLimitePago}
+                      onChange={handleChange}
+                      className={`w-28 px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base border-2 rounded-xl focus:outline-none focus:ring-2 transition-all text-center font-bold ${
+                        errors.diasLimitePago
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-100'
+                      }`}
+                    />
+                    <span className="text-xs md:text-sm text-gray-500">Días después.</span>
+                  </div>
+                  {errors.diasLimitePago ? (
+                    <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                      <Info className="w-3 h-3 flex-shrink-0" />
+                      {errors.diasLimitePago}
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-[10px] md:text-xs text-gray-400">
+                      Recomendado: 3-7 días.
+                    </p>
+                  )}
+                </div>
+
+                {/* Aviso al administrador */}
+                <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <span className="text-base flex-shrink-0 mt-0.5">⏰</span>
+                  <p className="text-[10px] md:text-xs text-amber-800 leading-relaxed">
+                    <strong>Recuerda registrar los pagos a tiempo.</strong> El puntaje de tus participantes se calcula con base en la fecha en que registras el pago aquí. Si registras tarde, el sistema puede penalizar a alguien que sí pagó a tiempo. ¡Hazles justicia!
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
         </div>
@@ -456,10 +559,13 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
                 const participantes = tandaData.participantes || [];
                 const participantesPorNumero = {};
                 participantes.forEach(p => { participantesPorNumero[p.numeroAsignado] = p; });
+                const diasLimite = Math.max(0, parseInt(formData.diasLimitePago) || 0);
 
                 return calcularFechasRondas(formData.fechaInicio, tandaData.totalRondas, formData.frecuencia).map((ronda, index) => {
                   const participante = participantesPorNumero[ronda.numero];
                   const primerNombre = participante ? participante.nombre.split(' ')[0] : null;
+                  const fechaLimite = new Date(ronda.fechaInicio);
+                  fechaLimite.setDate(fechaLimite.getDate() + diasLimite);
                   return (
                     <div key={ronda.numero} className={`flex justify-between items-center p-2.5 rounded-lg ${ronda.numero % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}>
                       <div className="flex items-center gap-2">
@@ -475,7 +581,9 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
                           {ronda.fechaInicio.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </div>
                         <div className="text-[10px] text-gray-400">
-                          Límite: {ronda.fechaLimite.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                          {diasLimite === 0
+                            ? 'Límite Pago: mismo día'
+                            : `Límite Pago: ${fechaLimite.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}`}
                         </div>
                       </div>
                     </div>
@@ -485,7 +593,7 @@ export default function ConfiguracionView({ tandaData, setTandaData, loadAdminDa
             </div>
 
             <div className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-400">
-              💡 <strong className="text-gray-600">Fecha límite de pago</strong> = Fecha inicio de ronda + 5 días
+              💡 <strong className="text-gray-600">Límite pago (fecha)</strong> = Fecha inicio de ronda {formData.diasLimitePago > 0 ? `+ ${formData.diasLimitePago} días` : '(mismo día)'}
             </div>
           </div>
         )
